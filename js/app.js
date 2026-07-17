@@ -208,59 +208,102 @@
   // ---------------------------------------------------------------------
   // HOME
   // ---------------------------------------------------------------------
-  var ROUTE_COPY = {
-    "associate": {
-      milestone: "Mile 1 — Learn to drive",
-      flavor: "No code required. Just good judgment and a healthy suspicion of confident-sounding wrong answers."
-    },
-    "developer": {
-      milestone: "The Code Path",
-      flavor: "You're the one calling the API, wiring up tools, and explaining to product why the model needs 8,000 tokens of context."
-    },
-    "architect-foundations": {
-      milestone: "The Systems Path",
-      flavor: "Less \"write the code,\" more \"decide how a dozen agents talk to each other without anything catching fire.\""
-    },
-    "architect-professional": {
-      milestone: "The Summit",
-      flavor: "Governance, RAG pipelines, and a stakeholder asking \"but is it safe\" while you calmly have an answer."
-    }
+  var LANE_BLURB = {
+    "associate": "Mandatory first stop — the foundation the other three assume you already have.",
+    "developer": "You're the one calling the API, wiring up tools, and shipping the thing.",
+    "architect-foundations": "Less \"write the code,\" more deciding how a dozen agents cooperate without catching fire.",
+    "architect-professional": "Governance, RAG pipelines, and a straight answer when someone asks \"but is it safe.\""
   };
 
-  function renderCertCard(certId, opts) {
-    opts = opts || {};
+  function domainStatus(certId, domainId) {
+    var cp = getCertProgress(certId);
+    var quiz = cp.domainQuizBest[domainId];
+    if (quiz && quiz.pct >= 80) return "mastered";
+    if (quiz || cp.lessonsRead[domainId]) return "started";
+    return "new";
+  }
+
+  var SVG_NS = "http://www.w3.org/2000/svg";
+  function svgEl(tag, attrs) {
+    var node = document.createElementNS(SVG_NS, tag);
+    Object.keys(attrs).forEach(function (k) { node.setAttribute(k, attrs[k]); });
+    return node;
+  }
+
+  function laneConnector(label) {
+    var svg = svgEl("svg", { width: 20, height: 40, viewBox: "0 0 20 40" });
+    svg.appendChild(svgEl("path", { d: "M10,0 L10,40", class: "road-bed" }));
+    svg.appendChild(svgEl("path", { d: "M10,0 L10,40", class: "road-dash" }));
+    return el("div", { class: "lane-connector" }, [svg, el("div", { class: "lc-label" }, [label])]);
+  }
+
+  function laneEndNote(label) {
+    return el("div", { class: "lane-end-note" }, [label]);
+  }
+
+  function renderLane(certId) {
     var cert = CERTS[certId];
+    var accent = ACCENTS[certId];
+    var domains = cert.domains;
     var pct = certCompletionPct(certId);
-    var copy = ROUTE_COPY[certId];
-    var children = [
-      el("div", { class: "accent-bar", style: "background:" + ACCENTS[certId] })
-    ];
-    if (opts.stepNum) children.push(el("div", { class: "step-num" }, [String(opts.stepNum)]));
-    children.push(el("h3", {}, [cert.name]));
-    children.push(el("div", { class: "meta" }, [cert.code + " · " + cert.cost + " · " + cert.questions + " questions"]));
-    if (opts.flavor && copy) children.push(el("div", { class: "flavor" }, [copy.flavor]));
-    else children.push(el("div", { class: "desc" }, [cert.tagline]));
-    children.push(el("div", { class: "progress-row" }, [
-      el("div", { class: "progress-track" }, [el("div", { class: "progress-fill", style: "width:" + pct + "%; background:" + ACCENTS[certId] })]),
-      el("div", { class: "progress-pct" }, [pct + "%"])
+
+    var lane = el("div", { class: "lane" });
+    lane.style.setProperty("--lane-accent", accent);
+
+    lane.appendChild(el("div", { class: "lane-head" }, [
+      el("div", { class: "lane-title-wrap" }, [
+        el("h3", {}, [cert.name]),
+        el("p", { class: "lane-blurb" }, [LANE_BLURB[certId]])
+      ]),
+      el("div", { class: "lane-side" }, [
+        el("a", { class: "lane-track-link", onclick: go("#/track/" + certId) }, ["Full track details →"]),
+        el("div", { class: "lane-meta" }, [pct + "% complete · " + domains.length + " domains"])
+      ])
     ]));
-    children.push(el("div", { class: "cta" }, [pct > 0 ? "Continue →" : "Start →"]));
-    var card = el("div", { class: "track-card milestone-card", onclick: go("#/track/" + certId) }, children);
-    return card;
-  }
 
-  function road(extraClass, forCertId) {
-    var traveled = forCertId && certCompletionPct(forCertId) > 0;
-    var r = el("div", { class: "route-road v" + (extraClass ? " " + extraClass : "") + (traveled ? " traveled" : "") });
-    if (traveled) r.style.setProperty("--track-accent", ACCENTS[forCertId]);
-    return r;
-  }
+    var nodeSize = 44, spacing = 138, padX = 68, trackH = 215, centerY = 165, amp = 20;
+    var width = padX * 2 + (domains.length - 1) * spacing;
+    var points = domains.map(function (d, i) {
+      return { x: padX + i * spacing, y: Math.round(centerY + amp * Math.sin(i * 1.05)), domain: d };
+    });
 
-  function pin(icon, label) {
-    return el("div", { class: "pin" }, [
-      el("div", { class: "badge-icon" }, [icon]),
-      el("div", { class: "pin-label" }, [label])
-    ]);
+    var svg = svgEl("svg", { width: width, height: trackH, viewBox: "0 0 " + width + " " + trackH });
+    for (var i = 1; i < points.length; i++) {
+      var prev = points[i - 1], cur = points[i];
+      var midX = (prev.x + cur.x) / 2;
+      var d = "M " + prev.x + "," + prev.y + " C " + midX + "," + prev.y + " " + midX + "," + cur.y + " " + cur.x + "," + cur.y;
+      var traveled = domainStatus(certId, cur.domain.id) !== "new";
+      svg.appendChild(svgEl("path", { d: d, class: "road-bed" + (traveled ? " traveled" : "") }));
+      svg.appendChild(svgEl("path", { d: d, class: "road-dash" }));
+    }
+
+    var track = el("div", { class: "lane-track", style: "width:" + width + "px; height:" + trackH + "px;" });
+    track.appendChild(svg);
+
+    points.forEach(function (p, i) {
+      var dom = p.domain;
+      var status = domainStatus(certId, dom.id);
+      var cp = getCertProgress(certId);
+      var quiz = cp.domainQuizBest[dom.id];
+      var statusText = status === "mastered" ? "Mastered ✓" : status === "started" ? (quiz ? "Quiz best: " + quiz.pct + "%" : "Lesson started") : "Not started yet";
+      var node = el("button", {
+        class: "node " + status,
+        type: "button",
+        style: "left:" + p.x + "px; top:" + p.y + "px;",
+        onclick: go("#/track/" + certId + "/domain/" + dom.id)
+      }, [
+        el("span", {}, [status === "mastered" ? "✓" : String(i + 1)]),
+        el("div", { class: "node-tip" }, [
+          el("div", { class: "nt-title" }, [dom.title]),
+          el("div", { class: "nt-meta" }, [dom.weight + "% of exam"]),
+          el("div", { class: "nt-status" }, [statusText])
+        ])
+      ]);
+      track.appendChild(node);
+    });
+
+    lane.appendChild(el("div", { class: "lane-scroll" }, [track]));
+    return lane;
   }
 
   function renderHome(root) {
@@ -284,61 +327,40 @@
       ])
     ]));
 
-    var tiles = el("div", { class: "tile-row" });
-    CERT_ORDER.forEach(function (id, i) {
+    var nav = el("div", { class: "quicknav-row" });
+    CERT_ORDER.forEach(function (id) {
       if (!CERTS[id]) return;
-      tiles.appendChild(renderCertCard(id, { stepNum: i + 1 }));
+      var cert = CERTS[id];
+      var pct = certCompletionPct(id);
+      nav.appendChild(el("div", { class: "quicknav", onclick: go("#/track/" + id) }, [
+        el("span", { class: "qn-dot", style: "background:" + ACCENTS[id] }),
+        el("div", { class: "qn-body" }, [
+          el("div", { class: "qn-name" }, [cert.code]),
+          el("div", { class: "qn-meta" }, [cert.cost + " · " + cert.questions + "Q"])
+        ]),
+        el("div", { class: "qn-pct" }, [pct + "%"])
+      ]));
     });
-    shell.appendChild(tiles);
+    shell.appendChild(nav);
 
     // ------------------------------------------------------------- route map
     var map = el("div", { class: "route-map" });
-    map.appendChild(el("div", { class: "route-intro" }, [
-      el("h2", { style: "margin-top:0" }, ["The route"]),
-      el("p", {}, [
-        "One mandatory first stop, then the road splits. No prerequisites, no wrong turns — just different destinations depending on what you actually do at work."
-      ])
+    map.appendChild(el("h2", {}, ["The route"]));
+    map.appendChild(el("p", { class: "route-intro" }, [
+      "Every marker below is a domain from Anthropic's own exam blueprint — hover one for what it covers, click to jump straight into that lesson. One mandatory first lane, then two directions depending on what you actually do at work."
     ]));
 
-    map.appendChild(pin("🚦", "Start here"));
-    map.appendChild(road(null, "associate"));
-    map.appendChild(el("div", { class: "milestone-wrap", style: "width:100%; display:flex; justify-content:center;" }, [renderCertCard("associate", { flavor: true })]));
-    map.appendChild(road(null, "associate"));
+    var lanes = ["associate", "developer", "architect-foundations", "architect-professional"].map(renderLane);
 
-    // fork — desktop SVG version
-    var forkSvg = el("div", { class: "route-fork-wrap desktop-fork" });
-    forkSvg.innerHTML =
-      '<svg viewBox="0 0 240 70" preserveAspectRatio="xMidYMid meet">' +
-      '<path class="road-bed" d="M120,0 C120,30 60,25 60,70" />' +
-      '<path class="road-bed" d="M120,0 C120,30 180,25 180,70" />' +
-      '<path class="road-dash" d="M120,0 C120,30 60,25 60,70" />' +
-      '<path class="road-dash" d="M120,0 C120,30 180,25 180,70" />' +
-      '</svg>';
-    map.appendChild(forkSvg);
-    map.appendChild(el("div", { class: "fork-label" }, ["🔀 The road forks here — pick based on what you actually do, not which sounds cooler."]));
-    map.appendChild(el("div", { class: "route-road v fork-mobile" }));
+    map.appendChild(lanes[0]);
+    map.appendChild(laneConnector("Then pick a lane below, based on what you actually do at work — not which one sounds cooler"));
+    map.appendChild(lanes[1]);
+    map.appendChild(laneEndNote("🏁 End of this road — no further cert needed to ship."));
+    map.appendChild(lanes[2]);
+    map.appendChild(laneConnector("Ready for more?"));
+    map.appendChild(lanes[3]);
+    map.appendChild(laneEndNote("🏔 Summit — you're now the one other architects call."));
 
-    var branches = el("div", { class: "route-branches" });
-
-    var devBranch = el("div", { class: "branch" }, [
-      el("div", { class: "branch-label" }, ["Left fork"]),
-      renderCertCard("developer", { flavor: true }),
-      road("short", "developer"),
-      pin("🏁", "End of the road — no further cert needed to ship.")
-    ]);
-    branches.appendChild(devBranch);
-
-    var archBranch = el("div", { class: "branch" }, [
-      el("div", { class: "branch-label" }, ["Right fork"]),
-      renderCertCard("architect-foundations", { flavor: true }),
-      road(null, "architect-foundations"),
-      renderCertCard("architect-professional", { flavor: true }),
-      road("short", "architect-professional"),
-      pin("🏔", "Summit — you're now the one other architects call.")
-    ]);
-    branches.appendChild(archBranch);
-
-    map.appendChild(branches);
     shell.appendChild(map);
 
     shell.appendChild(el("h2", {}, ["How this works"]));
@@ -362,6 +384,11 @@
     ]));
 
     root.appendChild(shell);
+
+    lanes.forEach(function (lane) {
+      var scrollEl = lane.querySelector(".lane-scroll");
+      if (scrollEl && scrollEl.scrollWidth <= scrollEl.clientWidth + 2) scrollEl.classList.add("fits");
+    });
   }
 
   function renderNotFound(root) {
