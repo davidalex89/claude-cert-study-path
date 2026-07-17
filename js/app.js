@@ -483,6 +483,139 @@
   }
 
   // ---------------------------------------------------------------------
+  // INTERACTIVE LESSON WIDGETS (step-through / scenario / classify)
+  // ---------------------------------------------------------------------
+  function widgetShell(icon, title, bodyNode) {
+    return el("div", { class: "widget" }, [
+      el("div", { class: "widget-head" }, [el("span", { class: "w-icon" }, [icon]), el("h4", {}, [title])]),
+      el("div", { class: "widget-body" }, [bodyNode])
+    ]);
+  }
+
+  function renderStepThrough(spec) {
+    var state = { i: 0 };
+    var body = el("div", {});
+    function draw() {
+      body.innerHTML = "";
+      var step = spec.steps[state.i];
+
+      var dots = el("div", { class: "step-dots" });
+      spec.steps.forEach(function (s, i) {
+        dots.appendChild(el("span", { class: "step-dot" + (i === state.i ? " active" : i < state.i ? " done" : "") }));
+      });
+      body.appendChild(dots);
+
+      if (step.stopReason) {
+        body.appendChild(el("div", { class: "stop-reason-badge " + step.stopReason }, [
+          step.stopReason === "tool_use" ? "⚙ stop_reason: \"tool_use\"" : "✓ stop_reason: \"end_turn\""
+        ]));
+      }
+      body.appendChild(el("div", { class: "step-narration" }, [
+        step.label ? el("strong", {}, [step.label + " — "]) : null,
+        step.narration
+      ]));
+
+      var transcript = el("div", { class: "transcript" });
+      for (var i = 0; i <= state.i; i++) {
+        (spec.steps[i].messages || []).forEach(function (m) {
+          transcript.appendChild(el("div", { class: "transcript-msg " + m.kind }, [
+            el("span", { class: "tm-role" }, [m.role]),
+            m.text
+          ]));
+        });
+      }
+      body.appendChild(transcript);
+
+      var nav = el("div", { class: "step-nav" });
+      var backBtn = el("button", { class: "btn btn-sm", type: "button" }, ["← Back"]);
+      backBtn.disabled = state.i === 0;
+      backBtn.addEventListener("click", function () { if (state.i > 0) { state.i--; draw(); } });
+      var nextBtn = el("button", { class: "btn btn-sm btn-primary", type: "button" }, [state.i < spec.steps.length - 1 ? "Next →" : "Restart ↺"]);
+      nextBtn.addEventListener("click", function () {
+        state.i = state.i < spec.steps.length - 1 ? state.i + 1 : 0;
+        draw();
+      });
+      nav.appendChild(backBtn);
+      nav.appendChild(nextBtn);
+      nav.appendChild(el("span", { class: "step-count" }, ["Step " + (state.i + 1) + " of " + spec.steps.length]));
+      body.appendChild(nav);
+    }
+    draw();
+    return widgetShell("▶", spec.title || "Step through it", body);
+  }
+
+  function renderScenario(spec) {
+    var body = el("div", {});
+    body.appendChild(el("div", { class: "scenario-setup" }, [spec.setup]));
+    var choicesWrap = el("div", { class: "scenario-choices" });
+    var answered = false;
+    var feedbackBox = el("div", {});
+    spec.choices.forEach(function (choice) {
+      var btn = el("button", { class: "scenario-choice", type: "button" }, [choice.text]);
+      btn.addEventListener("click", function () {
+        if (answered) return;
+        answered = true;
+        btn.classList.add("picked", choice.outcome === "good" ? "good" : "bad");
+        Array.prototype.forEach.call(choicesWrap.children, function (c) { c.setAttribute("data-disabled", "true"); });
+        feedbackBox.appendChild(el("div", { class: "scenario-feedback " + (choice.outcome === "good" ? "good" : "bad") }, [
+          el("span", { class: "sf-verdict" }, [choice.outcome === "good" ? "✓ Solid call" : "✗ This is the failure mode"]),
+          choice.feedback
+        ]));
+      });
+      choicesWrap.appendChild(btn);
+    });
+    body.appendChild(choicesWrap);
+    body.appendChild(feedbackBox);
+    return widgetShell("🧭", spec.title || "Scenario", body);
+  }
+
+  function renderClassifyGame(spec) {
+    var body = el("div", {});
+    if (spec.instructions) body.appendChild(el("p", { class: "classify-instructions" }, [spec.instructions]));
+    var score = { correct: 0, answered: 0 };
+    var scoreEl = el("div", { class: "classify-score" }, ["0 / " + spec.items.length + " answered"]);
+    body.appendChild(scoreEl);
+    var defaultOptions = [["hook", "🔒 Hook"], ["prompt", "💬 Prompt"]];
+    spec.items.forEach(function (item) {
+      var options = item.options || defaultOptions;
+      var itemEl = el("div", { class: "classify-item" });
+      itemEl.appendChild(el("div", { class: "classify-text" }, [item.text]));
+      var btnsWrap = el("div", { class: "classify-btns" });
+      var whyBox = el("div", {});
+      options.forEach(function (opt) {
+        var btn = el("button", { class: "classify-btn", type: "button" }, [opt[1]]);
+        btn.addEventListener("click", function () {
+          if (itemEl.classList.contains("answered")) return;
+          itemEl.classList.add("answered");
+          var isCorrect = opt[0] === item.answer;
+          btn.classList.add(isCorrect ? "correct-pick" : "wrong-pick");
+          if (!isCorrect) {
+            Array.prototype.forEach.call(btnsWrap.children, function (b, bi) {
+              if (options[bi][0] === item.answer) b.classList.add("correct-pick");
+            });
+          }
+          score.answered++;
+          if (isCorrect) score.correct++;
+          scoreEl.textContent = score.correct + " / " + spec.items.length + " correct (" + score.answered + " answered)";
+          whyBox.appendChild(el("div", { class: "classify-why" }, [item.why]));
+        });
+        btnsWrap.appendChild(btn);
+      });
+      itemEl.appendChild(btnsWrap);
+      itemEl.appendChild(whyBox);
+      body.appendChild(itemEl);
+    });
+    return widgetShell("🎯", spec.title || "Quick check", body);
+  }
+
+  function renderInteractive(spec) {
+    if (spec.type === "stepThrough") return renderStepThrough(spec);
+    if (spec.type === "scenario") return renderScenario(spec);
+    if (spec.type === "classify") return renderClassifyGame(spec);
+    return null;
+  }
+
+  // ---------------------------------------------------------------------
   // DOMAIN LESSON
   // ---------------------------------------------------------------------
   function renderDomain(root, certId, domainId) {
@@ -514,6 +647,10 @@
     (domain.lesson.sections || []).forEach(function (sec) {
       var s = el("div", { class: "lesson-section" }, [el("h3", {}, [sec.heading])]);
       s.appendChild(el("div", { html: sec.body }));
+      if (sec.interactive) {
+        var widget = renderInteractive(sec.interactive);
+        if (widget) s.appendChild(widget);
+      }
       shell.appendChild(s);
     });
 

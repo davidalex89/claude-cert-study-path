@@ -46,17 +46,82 @@ window.CERT_DATA["architect-foundations"] = {
   messages.push({ role: "user", content: results });
   response = await client.messages.create({ model, messages, tools });
 }
-// response.stop_reason === "end_turn" -&gt; present response.content</code></pre><p>Tool results are appended to conversation history so the model can reason about them on the next iteration — the loop is model-driven decision-making (Claude decides which tool to call next based on context), not a pre-configured decision tree or fixed tool sequence. Avoid the anti-patterns: parsing natural-language text to detect when to stop, using an arbitrary iteration cap as the <em>primary</em> stopping mechanism, or checking for assistant text content instead of <code>stop_reason</code> as the completion signal.</p>`
+// response.stop_reason === "end_turn" -&gt; present response.content</code></pre><div class="callout analogy"><span class="callout-label">Think of it like...</span>A recipe says "preheat 10 min, bake 25 min, done" — a fixed number of steps regardless of what's actually happening in the oven. A thermostat instead keeps checking one signal (is the temperature at target yet?) and keeps acting until that signal says stop. The agentic loop works like the thermostat, not the recipe: it doesn't run a fixed number of turns, it keeps checking <code>stop_reason</code> and keeps calling tools until Claude itself signals it's done — no more, no less.</div><p>Tool results are appended to conversation history so the model can reason about them on the next iteration — the loop is model-driven decision-making (Claude decides which tool to call next based on context), not a pre-configured decision tree or fixed tool sequence. Avoid the anti-patterns: parsing natural-language text to detect when to stop, using an arbitrary iteration cap as the <em>primary</em> stopping mechanism, or checking for assistant text content instead of <code>stop_reason</code> as the completion signal. An iteration cap is still worth having — as a safety net against a genuinely stuck loop — but if it's the thing that's actually ending most of your loops, that's a sign the model isn't reliably reaching <code>end_turn</code> on its own, and the underlying prompt or tool design needs attention.</p>`,
+            interactive: {
+              type: "stepThrough",
+              title: "Watch the loop run — a support request, turn by turn",
+              steps: [
+                {
+                  label: "Turn 1",
+                  stopReason: "tool_use",
+                  narration: "The user asked about an order and a possible refund. Claude doesn't know who they are yet, so before anything else, it calls get_customer. Nothing told the loop to do this in advance — Claude decided it, based on what was missing.",
+                  messages: [{ role: "assistant", kind: "tool_call", text: "get_customer(email: \"j.rivera@example.com\")" }]
+                },
+                {
+                  label: "Tool executes",
+                  stopReason: null,
+                  narration: "The tool runs outside the model and its result is appended to the conversation. Claude hasn't \"seen\" this yet — it will on the next request, along with everything before it.",
+                  messages: [{ role: "tool", kind: "tool_result", text: "→ { name: \"J. Rivera\", tier: \"gold\", id: 4471 }" }]
+                },
+                {
+                  label: "Turn 2",
+                  stopReason: "tool_use",
+                  narration: "Now that Claude knows who the customer is, it reasons about what's still missing — the actual order — and calls lookup_order. A fixed script would have had to hard-code this exact sequence in advance; here, Claude derived it from context.",
+                  messages: [{ role: "assistant", kind: "tool_call", text: "lookup_order(customer_id: 4471)" }]
+                },
+                {
+                  label: "Tool executes",
+                  stopReason: null,
+                  narration: "Another result appended. The transcript keeps growing — every step adds to what Claude can see; nothing gets thrown away between iterations.",
+                  messages: [{ role: "tool", kind: "tool_result", text: "→ { order: \"#8842\", status: \"delayed\", days_late: 3 }" }]
+                },
+                {
+                  label: "Turn 3",
+                  stopReason: "tool_use",
+                  narration: "With order status in hand, Claude still needs to know if a 3-day-late gold-tier order actually qualifies for a refund. A third tool call — still driven by what Claude has learned so far, not a preset plan.",
+                  messages: [{ role: "assistant", kind: "tool_call", text: "check_refund_policy(days_late: 3, tier: \"gold\")" }]
+                },
+                {
+                  label: "Tool executes",
+                  stopReason: null,
+                  narration: "One more result appended to history.",
+                  messages: [{ role: "tool", kind: "tool_result", text: "→ { eligible: true, reason: \"gold tier, 3+ days late\" }" }]
+                },
+                {
+                  label: "Turn 4",
+                  stopReason: "end_turn",
+                  narration: "Claude now has everything it needs: identity, order status, and refund eligibility. No more tools are required, so stop_reason flips to \"end_turn\" and the loop presents this as the final answer.",
+                  messages: [{ role: "assistant", kind: "final", text: "Your order #8842 is delayed by 3 days. Since you're a gold-tier customer, you're eligible for a refund — I can process that now if you'd like." }]
+                }
+              ]
+            }
           },
           {
             heading: "Coordinator/subagent hub-and-spoke orchestration",
-            body: "<p>Multi-agent systems typically use a <strong>hub-and-spoke</strong> architecture: a coordinator agent manages all inter-subagent communication, error handling, and information routing — subagents don't talk to each other directly. The coordinator owns task decomposition, delegation, result aggregation, and deciding which subagents to invoke based on query complexity; a well-designed coordinator dynamically selects which subagents to invoke rather than always routing every request through the full pipeline.</p><p>The recurring failure mode is <strong>overly narrow decomposition</strong>: a coordinator asked to research \"the impact of AI on creative industries\" might decompose the topic into only \"AI in digital art creation,\" \"AI in graphic design,\" and \"AI in photography\" — each subagent executes correctly, but the assignment itself never covered music, writing, or film. The fix is an <strong>iterative refinement loop</strong>: the coordinator evaluates synthesis output for coverage gaps, re-delegates to search/analysis subagents with targeted follow-up queries, and re-invokes synthesis until coverage is sufficient. Routing all subagent communication through the coordinator also gives you a single place for observability and consistent error handling.</p>"
+            body: "<p>Multi-agent systems typically use a <strong>hub-and-spoke</strong> architecture: a coordinator agent manages all inter-subagent communication, error handling, and information routing — subagents don't talk to each other directly. The coordinator owns task decomposition, delegation, result aggregation, and deciding which subagents to invoke based on query complexity; a well-designed coordinator dynamically selects which subagents to invoke rather than always routing every request through the full pipeline.</p><div class=\"callout analogy\"><span class=\"callout-label\">Think of it like...</span>An air traffic control tower. Planes (subagents) never negotiate directly with each other — they all talk to the tower, and the tower holds the only complete picture of what's happening across the airspace. If two planes coordinated directly and something went wrong, you'd have to reconstruct a conversation that happened entirely outside the tower's view. Routing everything through one coordinator is what keeps the whole system debuggable.</div><p>The recurring failure mode is <strong>overly narrow decomposition</strong>: a coordinator asked to research \"the impact of AI on creative industries\" might decompose the topic into only \"AI in digital art creation,\" \"AI in graphic design,\" and \"AI in photography\" — each subagent executes correctly, but the assignment itself never covered music, writing, or film. This is the trap: nothing in the pipeline ever fails loudly, because every subagent did exactly what it was asked. The gap is invisible unless something is specifically checking the output against the original scope. The fix is an <strong>iterative refinement loop</strong>: the coordinator evaluates synthesis output for coverage gaps, re-delegates to search/analysis subagents with targeted follow-up queries, and re-invokes synthesis until coverage is sufficient. Routing all subagent communication through the coordinator also gives you a single place for observability and consistent error handling.</p>",
+            interactive: {
+              type: "scenario",
+              title: "You're the coordinator",
+              setup: "A user asks: \"What's the impact of AI on creative industries?\" You need to decide how to decompose this into subagent tasks.",
+              choices: [
+                {
+                  text: "Decompose into exactly three fixed subtopics up front — digital art, graphic design, photography — dispatch to three subagents, and synthesize whatever comes back.",
+                  outcome: "bad",
+                  feedback: "This is the overly-narrow-decomposition failure mode. Every subagent will execute cleanly and the synthesis will read confidently — but music, writing, film, and more never got assigned to anyone, so nothing in the pipeline ever surfaces the gap."
+                },
+                {
+                  text: "Decompose broadly first, then have the coordinator check the synthesized output against the original scope and re-delegate targeted follow-ups for anything missing before finalizing.",
+                  outcome: "good",
+                  feedback: "This is the iterative-refinement loop. The coordinator treats the first pass as a draft, checks it against the original question, and only stops once coverage is actually sufficient — not once a fixed pipeline has run exactly once."
+                }
+              ]
+            }
           },
           {
             heading: "Spawning subagents: the Task tool and context passing",
             body: `<p>The <strong>Task tool</strong> is the mechanism for spawning subagents — a coordinator's <code>allowedTools</code> must include <code>"Task"</code> or it cannot delegate at all. Critically, <strong>subagents do not automatically inherit the coordinator's conversation history or share memory between invocations</strong>: any context a subagent needs (prior findings, source documents, constraints) must be explicitly included in its prompt.</p><pre><code>// Coordinator emits both Task calls in the SAME turn for parallel execution
 Task({ subagent_type: "web-search", prompt: "Research recent adoption of..." })
-Task({ subagent_type: "doc-analysis", prompt: "Summarize the attached filing..." })</code></pre><p>An <code>AgentDefinition</code> configures each subagent type's description, system prompt, and tool restrictions. When passing findings between agents, use structured data formats that separate content from metadata (source URLs, document names, page numbers) so attribution survives the handoff — don't just concatenate raw prose. Coordinator prompts should specify research goals and quality criteria rather than step-by-step procedural instructions, so subagents can adapt their approach. <code>fork_session</code> supports exploring divergent approaches from a shared analysis baseline (e.g., comparing two refactoring strategies against the same codebase understanding).</p>`
+Task({ subagent_type: "doc-analysis", prompt: "Summarize the attached filing..." })</code></pre><p>An <code>AgentDefinition</code> configures each subagent type's description, system prompt, and tool restrictions. When passing findings between agents, use structured data formats that separate content from metadata (source URLs, document names, page numbers) so attribution survives the handoff — don't just concatenate raw prose. Coordinator prompts should specify research goals and quality criteria rather than step-by-step procedural instructions, so subagents can adapt their approach.</p><div class="compare-grid"><div class="compare-col bad"><span class="cc-label">✗ Assumes shared memory</span><code>Task({<br>&nbsp;&nbsp;subagent_type: "synthesis",<br>&nbsp;&nbsp;prompt: "Write up the findings<br>&nbsp;&nbsp;from the research so far."<br>})</code><p>This subagent starts with <em>zero</em> context beyond what's in this prompt. "The research so far" points at nothing — the coordinator's history isn't inherited.</p></div><div class="compare-col good"><span class="cc-label">✓ Context passed explicitly</span><code>Task({<br>&nbsp;&nbsp;subagent_type: "synthesis",<br>&nbsp;&nbsp;prompt: "Synthesize these findings<br>&nbsp;&nbsp;into a report, citing each<br>&nbsp;&nbsp;claim by source:\\n\\n" +<br>&nbsp;&nbsp;searchResults + docAnalysis<br>})</code><p>Findings are pasted directly into the prompt, with source attribution preserved, so the subagent has everything it needs in one shot.</p></div></div><p><code>fork_session</code> supports exploring divergent approaches from a shared analysis baseline (e.g., comparing two refactoring strategies against the same codebase understanding) — more on this in the session-state section below.</p>`
           },
           {
             heading: "Deterministic enforcement: hooks vs. prompt-based guidance",
@@ -67,15 +132,28 @@ Task({ subagent_type: "doc-analysis", prompt: "Summarize the attached filing..."
       "hooks": [{ "type": "command", "command": "./enforce_refund_cap.sh" }]
     }]
   }
-}</code></pre><p>A <strong>PostToolUse</strong> hook can intercept tool <em>results</em> to normalize heterogeneous formats (Unix timestamps, ISO 8601, numeric status codes) before the model ever reasons over them, or intercept outgoing tool <em>calls</em> to block a policy-violating action (e.g., a refund above $500) and redirect to an alternative workflow such as human escalation. Choose hooks over prompt-based enforcement whenever the business rule requires a guarantee, not just a strong nudge. When a workflow does hand off to a human mid-process, compile a structured summary — customer ID, root cause, refund amount, recommended action — since the human agent typically lacks access to the conversation transcript.</p>`
+}</code></pre><div class="callout analogy"><span class="callout-label">Think of it like...</span>A hook is a deadbolt; a prompt instruction is a sticky note on the door that says "please lock this." Most of the time the sticky note works fine — people generally do what it asks. But if the door absolutely cannot be left unlocked, you don't rely on everyone reading and obeying the note; you install a lock that makes the wrong state physically impossible. Hooks are the deadbolt: enforcement happens outside the model's judgment, so it can't be argued with, misread, or skipped under pressure.</div><p>A <strong>PostToolUse</strong> hook can intercept tool <em>results</em> to normalize heterogeneous formats (Unix timestamps, ISO 8601, numeric status codes) before the model ever reasons over them, or intercept outgoing tool <em>calls</em> to block a policy-violating action (e.g., a refund above $500) and redirect to an alternative workflow such as human escalation. Choose hooks over prompt-based enforcement whenever the business rule requires a guarantee, not just a strong nudge — and default to prompts for everything else, since hooks add rigidity and engineering overhead that a soft preference doesn't need. When a workflow does hand off to a human mid-process, compile a structured summary — customer ID, root cause, refund amount, recommended action — since the human agent typically lacks access to the conversation transcript.</p>`,
+            interactive: {
+              type: "classify",
+              title: "Hook or prompt guidance?",
+              instructions: "For each rule, decide: does this need a hook (deterministic, guaranteed), or is prompt-based guidance good enough?",
+              items: [
+                { text: "Block any refund tool call above $500 until a human has approved it.", answer: "hook", why: "Real financial exposure above a threshold — needs a guarantee, not a best-effort instruction." },
+                { text: "Prefer a warm, conversational tone in responses.", answer: "prompt", why: "A stylistic preference. Nothing breaks if the model occasionally misses it." },
+                { text: "Verify a caller's identity before any account-changing action.", answer: "hook", why: "Security-critical gate — exactly the failure mode hooks exist to prevent." },
+                { text: "Keep answers under 200 words unless the user asks for more detail.", answer: "prompt", why: "A soft formatting preference, not a safety or compliance boundary." },
+                { text: "Never allow the agent to delete files outside the project directory.", answer: "hook", why: "Destructive and irreversible if it goes wrong — enforce it programmatically, don't just ask nicely." },
+                { text: "Try to cite a source when making a factual claim.", answer: "prompt", why: "Best-effort quality guidance — worth asking for, but not something that needs a guaranteed block." }
+              ]
+            }
           },
           {
             heading: "Task decomposition strategies for complex workflows",
-            body: "<p>Two decomposition patterns cover most cases. <strong>Prompt chaining</strong> — a fixed sequential pipeline — fits predictable, multi-aspect work: analyze each file individually, then run a separate cross-file integration pass, rather than reviewing everything in one shot (which dilutes attention across files). <strong>Dynamic, adaptive decomposition</strong> fits open-ended investigation, where subtasks are generated based on what's discovered at each step rather than fixed up front — e.g., \"add comprehensive tests to a legacy codebase\" is best handled by first mapping the codebase's structure, identifying high-impact areas, and then building a prioritized plan that adapts as dependencies are discovered, rather than committing to a fixed task list before you've looked at the code.</p>"
+            body: `<p>Two decomposition patterns cover most cases. <strong>Prompt chaining</strong> — a fixed sequential pipeline — fits predictable, multi-aspect work, where you already know the shape of the task in advance. <strong>Dynamic, adaptive decomposition</strong> fits open-ended investigation, where subtasks are generated based on what's discovered at each step rather than fixed up front.</p><div class="compare-grid"><div class="compare-col good"><span class="cc-label">Prompt chaining</span><p><strong>Task:</strong> code-review a pull request touching 8 files.</p><p><strong>Plan:</strong> analyze each file individually against style/correctness criteria, then run one more pass checking cross-file consistency (shared types, naming, duplicated logic).</p><p>The shape is known up front — decompose by file, plus one integration pass. Reviewing all 8 files in a single shot would dilute attention across them.</p></div><div class="compare-col good"><span class="cc-label">Dynamic decomposition</span><p><strong>Task:</strong> "add comprehensive tests to a legacy codebase."</p><p><strong>Plan:</strong> first map the codebase's structure, identify high-impact untested areas, then build a prioritized task list — which only takes shape once the mapping step reveals what's actually there.</p><p>Committing to a fixed task list before looking at the code would mean guessing at a structure you haven't seen yet.</p></div></div><p>The judgment call is which one you're facing: if you can describe the full task breakdown before doing any work, it's prompt chaining; if the right next step depends on what the previous step finds, it's dynamic decomposition — and forcing a dynamic problem into a fixed chain is exactly how you end up with the overly-narrow-decomposition failure from the previous section.</p>`
           },
           {
             heading: "Session state: resumption and forking",
-            body: "<p>Named session resumption (<code>--resume &lt;session-name&gt;</code>) continues a specific prior conversation — useful for picking a long investigation back up across work sessions. <code>fork_session</code> instead creates an independent branch from a shared analysis baseline, letting you explore divergent approaches (e.g., comparing two testing strategies) without the branches interfering with each other.</p><p>The judgment call is between resuming and starting fresh: if the underlying files changed since a session was paused, you must explicitly inform the resumed session about those changes, or it will reason from stale tool results. When prior tool results are stale enough that they'd mislead more than help, starting a new session with a structured summary injected into the initial context is more reliable than resuming and hoping the agent notices the drift.</p>"
+            body: "<p>Named session resumption (<code>--resume &lt;session-name&gt;</code>) continues a specific prior conversation — useful for picking a long investigation back up across work sessions. <code>fork_session</code> instead creates an independent branch from a shared analysis baseline, letting you explore divergent approaches (e.g., comparing two testing strategies) without the branches interfering with each other.</p><p>The judgment call is between resuming and starting fresh: if the underlying files changed since a session was paused, you must explicitly inform the resumed session about those changes, or it will reason from stale tool results. When prior tool results are stale enough that they'd mislead more than help, starting a new session with a structured summary injected into the initial context is more reliable than resuming and hoping the agent notices the drift.</p><p>A concrete case: you pause a long codebase investigation on Friday with the agent holding a detailed mental model of a module's structure. Over the weekend, a teammate refactors that exact module. On Monday, resuming with <code>--resume</code> silently carries forward Friday's now-wrong structure unless you explicitly tell the resumed session what changed — the agent has no way to know the weekend happened. In that case, either inject a short \"here's what changed since Friday\" note into the resumed session, or start fresh and let it re-read the current state; don't resume silently and assume it'll notice.</p>"
           }
         ],
         checks: [
