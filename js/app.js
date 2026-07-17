@@ -287,6 +287,7 @@
       var cp = getCertProgress(certId);
       var quiz = cp.domainQuizBest[dom.id];
       var statusText = status === "mastered" ? "Mastered ✓" : status === "started" ? (quiz ? "Quiz best: " + quiz.pct + "%" : "Lesson started") : "Not started yet";
+      var tipEdgeClass = i === 0 ? " edge-start" : i === points.length - 1 ? " edge-end" : "";
       var node = el("button", {
         class: "node " + status,
         type: "button",
@@ -294,7 +295,7 @@
         onclick: go("#/track/" + certId + "/domain/" + dom.id)
       }, [
         el("span", {}, [status === "mastered" ? "✓" : String(i + 1)]),
-        el("div", { class: "node-tip" }, [
+        el("div", { class: "node-tip" + tipEdgeClass }, [
           el("div", { class: "nt-title" }, [dom.title]),
           el("div", { class: "nt-meta" }, [dom.weight + "% of exam"]),
           el("div", { class: "nt-status" }, [statusText])
@@ -727,6 +728,7 @@
       el("a", { onclick: go("#/track/" + certId + "/domain/" + domainId) }, [domain.title]), el("span", { class: "sep" }, ["/"]),
       step.label
     ]));
+    shell.appendChild(el("a", { class: "back-link", onclick: go("#/track/" + certId + "/domain/" + domainId) }, ["← Back to " + domain.title]));
 
     var dots = el("div", { class: "concept-dots" });
     steps.forEach(function (s, i) {

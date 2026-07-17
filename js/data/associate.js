@@ -190,7 +190,50 @@ window.CERT_DATA["associate"] = {
           },
           {
             heading: "Fact-checking and knowing when to escalate",
-            body: "<p>The validation bar scales with what's at stake. A rule of thumb: <strong>any claim bound for a compliance, legal, financial, or external-facing audience gets verified against a primary source before it ships</strong> — self-reported confidence from Claude is not sufficient, and rewording a claim to sound more authoritative doesn't make it more accurate. For lower-stakes internal drafts, a lighter read-through may be enough. When you're not equipped to verify a domain-specific claim yourself (e.g., a regulatory interpretation), that's the signal to route it to a subject-matter expert or escalate to a Developer/Architect if it's a technical claim about how a system behaves.</p>"
+            body: `<p>The validation bar scales with what's at stake. A rule of thumb: <strong>any claim bound for a compliance, legal, financial, or external-facing audience gets verified against a primary source before it ships</strong> — self-reported confidence from Claude is not sufficient, and rewording a claim to sound more authoritative doesn't make it more accurate. For lower-stakes internal drafts, a lighter read-through may be enough.</p><p>Here's the judgment call in practice. Claude drafts a client-facing email stating "per our contract, refunds are processed within 5 business days." You don't have that clause memorized — so before it goes out, you pull up the actual contract and check the number. That's verification, and it's on you to do it: you have access to the source and the ability to check it. Now suppose Claude also drafts an internal Slack recap of that same email for your team's tracking. Same underlying claim, much lower stakes — a quick skim is enough, since a wrong number there gets caught internally long before it reaches a customer.</p><p>The harder case is when you <em>can't</em> verify something yourself, even if you wanted to — a regulatory interpretation you're not trained in, a tax rule, a technical claim about why a production system behaved a certain way. That's the signal to escalate: to a subject-matter expert for domain questions, or to a Developer/Architect for technical systems claims. Escalating isn't a failure. Treating something outside your expertise as "probably fine because it sounded confident" is the actual failure this domain tests for.</p>`,
+            interactive: {
+              type: "classify",
+              title: "Verify it yourself, or escalate?",
+              instructions: "For each situation, decide: is this something you can check and ship yourself, or does it need to go to someone else first?",
+              items: [
+                {
+                  text: "Claude drafts a client email citing a specific refund-timeline clause from a contract you have on hand.",
+                  answer: "verify",
+                  options: [["verify", "✅ Verify yourself"], ["escalate", "🚩 Escalate"]],
+                  why: "You have access to the actual contract and the ability to check the clause — that's exactly the kind of claim you're equipped to verify yourself."
+                },
+                {
+                  text: "Claude summarizes a new regulatory requirement for a compliance filing, citing a specific subsection.",
+                  answer: "escalate",
+                  options: [["verify", "✅ Verify yourself"], ["escalate", "🚩 Escalate"]],
+                  why: "Regulatory interpretation is specialist territory. Even if the citation looks plausible, this needs a compliance or legal expert, not a confident guess."
+                },
+                {
+                  text: "Claude drafts an internal Slack recap of a meeting, for your own team's notes only.",
+                  answer: "verify",
+                  options: [["verify", "✅ Verify yourself"], ["escalate", "🚩 Escalate"]],
+                  why: "Low stakes and internal — a quick skim against your own memory of the meeting is proportionate. No need to escalate something this low-risk."
+                },
+                {
+                  text: "Claude explains why a production system behaved unexpectedly, citing specific technical internals.",
+                  answer: "escalate",
+                  options: [["verify", "✅ Verify yourself"], ["escalate", "🚩 Escalate"]],
+                  why: "A technical claim about how a system actually behaves is outside an Associate's scope — route it to a Developer or Architect who can verify against the real system."
+                },
+                {
+                  text: "Claude reformats a dataset into a cleaner table — the numbers are ones you personally validated yesterday.",
+                  answer: "verify",
+                  options: [["verify", "✅ Verify yourself"], ["escalate", "🚩 Escalate"]],
+                  why: "Nothing new is being claimed here — the underlying data was already checked. Reformatting doesn't introduce new facts that need re-verification."
+                },
+                {
+                  text: "Claude drafts a tax-law interpretation for a client's financial planning document.",
+                  answer: "escalate",
+                  options: [["verify", "✅ Verify yourself"], ["escalate", "🚩 Escalate"]],
+                  why: "Tax law is specialist domain expertise. This is a textbook case for routing to someone qualified to actually stand behind the interpretation."
+                }
+              ]
+            }
           },
           {
             heading: "Choosing the right output format",
