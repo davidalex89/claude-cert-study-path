@@ -465,6 +465,48 @@ p { color: var(--text-secondary); }
 .road-step .body .row { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
 .road-step .body .sub { font-size: 0.8rem; color: var(--text-muted); }
 
+/* ---------- domain concept list (lesson overview page) ---------- */
+
+.concept-list { display: flex; flex-direction: column; gap: 6px; margin: 16px 0 4px; }
+.concept-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  cursor: pointer;
+  text-decoration: none;
+  color: var(--text-primary);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.concept-row:hover { border-color: var(--border-strong); background: var(--surface-1); }
+.concept-row .concept-num {
+  flex-shrink: 0;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.75rem; font-weight: 700;
+  background: var(--gridline); color: var(--text-secondary);
+}
+.concept-row .concept-label { flex-grow: 1; font-size: 0.9rem; font-weight: 600; }
+.concept-row .concept-go { color: var(--text-muted); font-size: 0.85rem; }
+
+/* ---------- domain concept step page ---------- */
+
+.concept-dots { display: flex; gap: 6px; margin: 16px 0 10px; }
+.concept-dot {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--gridline);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.concept-dot:hover { background: var(--baseline); }
+.concept-dot.active { background: var(--text-primary); width: 22px; border-radius: 5px; }
+.concept-dot.done { background: var(--good); }
+
 /* ---------- buttons ---------- */
 
 .btn {
@@ -503,6 +545,7 @@ p { color: var(--text-secondary); }
 
 .lesson-section { margin: 22px 0; }
 .lesson-section h3 { margin-bottom: 8px; }
+.lesson-section h2 { margin-top: 4px; margin-bottom: 10px; }
 .lesson-section p { margin: 8px 0; }
 .lesson-section ul, .lesson-section ol { color: var(--text-secondary); padding-left: 22px; }
 .lesson-section li { margin: 4px 0; }

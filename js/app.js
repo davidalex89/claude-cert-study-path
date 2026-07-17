@@ -162,6 +162,7 @@
       if (parts[2] === "domain" && parts[3]) {
         var domainId = parts[3];
         if (parts[4] === "quiz") return renderDomainQuiz(root, certId, domainId);
+        if (parts[4] === "step") return renderDomainStep(root, certId, domainId, parseInt(parts[5], 10) || 0);
         return renderDomain(root, certId, domainId);
       }
     }
@@ -616,8 +617,42 @@
   }
 
   // ---------------------------------------------------------------------
-  // DOMAIN LESSON
+  // DOMAIN LESSON — overview (concept menu) + one-concept-per-page steps
   // ---------------------------------------------------------------------
+
+  // A domain's walkthrough is its lesson.sections, plus one trailing
+  // "checks" step if it has checkpoint questions. Both step pages and the
+  // overview's concept list are built from this same list.
+  function domainSteps(domain) {
+    var steps = (domain.lesson.sections || []).map(function (sec, i) {
+      return { kind: "section", section: sec, label: sec.heading };
+    });
+    if (domain.lesson.checks && domain.lesson.checks.length) {
+      steps.push({ kind: "checks", label: "Check your understanding" });
+    }
+    return steps;
+  }
+
+  function renderSectionNode(sec) {
+    var s = el("div", { class: "lesson-section" }, [el("h2", {}, [sec.heading])]);
+    s.appendChild(el("div", { html: sec.body }));
+    if (sec.interactive) {
+      var widget = renderInteractive(sec.interactive);
+      if (widget) s.appendChild(widget);
+    }
+    return s;
+  }
+
+  function renderChecksNode(domain, certId) {
+    var wrap = el("div", {});
+    wrap.appendChild(el("h2", {}, ["Check your understanding"]));
+    wrap.appendChild(el("p", {}, ["Quick checkpoints covering this domain — answer, then reveal the explanation."]));
+    domain.lesson.checks.forEach(function (q) {
+      wrap.appendChild(renderQuestionCard(q, certId, null, { revealMode: true }));
+    });
+    return wrap;
+  }
+
   function renderDomain(root, certId, domainId) {
     var cert = CERTS[certId];
     var domain = cert.domains.filter(function (d) { return d.id === domainId; })[0];
@@ -628,6 +663,7 @@
     var idx = cert.domains.indexOf(domain);
     var prev = cert.domains[idx - 1];
     var next = cert.domains[idx + 1];
+    var steps = domainSteps(domain);
 
     var shell = el("div", { class: "shell" });
     shell.appendChild(el("div", { class: "crumbs" }, [
@@ -644,29 +680,80 @@
       ]));
     }
 
-    (domain.lesson.sections || []).forEach(function (sec) {
-      var s = el("div", { class: "lesson-section" }, [el("h3", {}, [sec.heading])]);
-      s.appendChild(el("div", { html: sec.body }));
-      if (sec.interactive) {
-        var widget = renderInteractive(sec.interactive);
-        if (widget) s.appendChild(widget);
-      }
-      shell.appendChild(s);
+    shell.appendChild(el("h2", {}, ["What's in this lesson"]));
+    shell.appendChild(el("p", { class: "lede" }, ["Broken into " + steps.length + " short stops — walk them in order, or jump to the one you need."]));
+    var conceptList = el("div", { class: "concept-list" });
+    steps.forEach(function (step, i) {
+      conceptList.appendChild(el("a", { class: "concept-row", onclick: go("#/track/" + certId + "/domain/" + domainId + "/step/" + i) }, [
+        el("span", { class: "concept-num" }, [step.kind === "checks" ? "✓" : String(i + 1)]),
+        el("span", { class: "concept-label" }, [step.label]),
+        el("span", { class: "concept-go" }, ["→"])
+      ]));
     });
-
-    if (domain.lesson.checks && domain.lesson.checks.length) {
-      shell.appendChild(el("h2", {}, ["Check your understanding"]));
-      shell.appendChild(el("p", {}, ["Quick checkpoints — answer, then reveal the explanation."]));
-      domain.lesson.checks.forEach(function (q) {
-        shell.appendChild(renderQuestionCard(q, certId, null, { revealMode: true }));
-      });
-    }
+    shell.appendChild(conceptList);
 
     shell.appendChild(el("div", { class: "btn-row" }, [
-      el("a", { class: "btn btn-primary", onclick: go("#/track/" + certId + "/domain/" + domainId + "/quiz") }, ["Take domain quiz →"]),
+      el("a", { class: "btn btn-primary", onclick: go("#/track/" + certId + "/domain/" + domainId + "/step/0") }, ["Start walkthrough →"]),
+      el("a", { class: "btn", onclick: go("#/track/" + certId + "/domain/" + domainId + "/quiz") }, ["Skip to domain quiz"]),
       prev ? el("a", { class: "btn", onclick: go("#/track/" + certId + "/domain/" + prev.id) }, ["← " + prev.title]) : null,
       next ? el("a", { class: "btn", onclick: go("#/track/" + certId + "/domain/" + next.id) }, [next.title + " →"]) : null
     ]));
+
+    root.appendChild(shell);
+  }
+
+  function renderDomainStep(root, certId, domainId, stepIndex) {
+    var cert = CERTS[certId];
+    var domain = cert.domains.filter(function (d) { return d.id === domainId; })[0];
+    if (!domain) return renderNotFound(root);
+    var steps = domainSteps(domain);
+    if (!steps.length) return renderDomain(root, certId, domainId);
+    if (stepIndex < 0) stepIndex = 0;
+    if (stepIndex >= steps.length) stepIndex = steps.length - 1;
+
+    renderTopbar(certId);
+    markLessonRead(certId, domainId);
+
+    var idx = cert.domains.indexOf(domain);
+    var domPrev = cert.domains[idx - 1];
+    var domNext = cert.domains[idx + 1];
+    var step = steps[stepIndex];
+    var isLast = stepIndex === steps.length - 1;
+
+    var shell = el("div", { class: "shell" });
+    shell.appendChild(el("div", { class: "crumbs" }, [
+      el("a", { onclick: go("#/") }, ["Home"]), el("span", { class: "sep" }, ["/"]),
+      el("a", { onclick: go("#/track/" + certId) }, [cert.name]), el("span", { class: "sep" }, ["/"]),
+      el("a", { onclick: go("#/track/" + certId + "/domain/" + domainId) }, [domain.title]), el("span", { class: "sep" }, ["/"]),
+      step.label
+    ]));
+
+    var dots = el("div", { class: "concept-dots" });
+    steps.forEach(function (s, i) {
+      var dot = el("span", { class: "concept-dot" + (i === stepIndex ? " active" : i < stepIndex ? " done" : "") });
+      dot.addEventListener("click", go("#/track/" + certId + "/domain/" + domainId + "/step/" + i));
+      dots.appendChild(dot);
+    });
+    shell.appendChild(dots);
+    shell.appendChild(el("span", { class: "pill" }, [(step.kind === "checks" ? "Recap" : "Concept " + (stepIndex + 1) + " of " + (steps.length - (domain.lesson.checks && domain.lesson.checks.length ? 1 : 0))) + " · " + domain.title]));
+
+    shell.appendChild(step.kind === "checks" ? renderChecksNode(domain, certId) : renderSectionNode(step.section));
+
+    var nav = el("div", { class: "btn-row" }, [
+      stepIndex === 0
+        ? el("a", { class: "btn", onclick: go("#/track/" + certId + "/domain/" + domainId) }, ["← Overview"])
+        : el("a", { class: "btn", onclick: go("#/track/" + certId + "/domain/" + domainId + "/step/" + (stepIndex - 1)) }, ["← Back"]),
+      !isLast ? el("a", { class: "btn btn-primary", onclick: go("#/track/" + certId + "/domain/" + domainId + "/step/" + (stepIndex + 1)) }, ["Next →"]) : null,
+      isLast ? el("a", { class: "btn btn-primary", onclick: go("#/track/" + certId + "/domain/" + domainId + "/quiz") }, ["Take domain quiz →"]) : null
+    ]);
+    shell.appendChild(nav);
+
+    if (isLast) {
+      shell.appendChild(el("div", { class: "btn-row" }, [
+        domPrev ? el("a", { class: "btn btn-sm", onclick: go("#/track/" + certId + "/domain/" + domPrev.id) }, ["← " + domPrev.title]) : null,
+        domNext ? el("a", { class: "btn btn-sm", onclick: go("#/track/" + certId + "/domain/" + domNext.id) }, [domNext.title + " →"]) : null
+      ]));
+    }
 
     root.appendChild(shell);
   }
