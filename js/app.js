@@ -208,17 +208,72 @@
   // ---------------------------------------------------------------------
   // HOME
   // ---------------------------------------------------------------------
+  var ROUTE_COPY = {
+    "associate": {
+      milestone: "Mile 1 — Learn to drive",
+      flavor: "No code required. Just good judgment and a healthy suspicion of confident-sounding wrong answers."
+    },
+    "developer": {
+      milestone: "The Code Path",
+      flavor: "You're the one calling the API, wiring up tools, and explaining to product why the model needs 8,000 tokens of context."
+    },
+    "architect-foundations": {
+      milestone: "The Systems Path",
+      flavor: "Less \"write the code,\" more \"decide how a dozen agents talk to each other without anything catching fire.\""
+    },
+    "architect-professional": {
+      milestone: "The Summit",
+      flavor: "Governance, RAG pipelines, and a stakeholder asking \"but is it safe\" while you calmly have an answer."
+    }
+  };
+
+  function renderCertCard(certId, opts) {
+    opts = opts || {};
+    var cert = CERTS[certId];
+    var pct = certCompletionPct(certId);
+    var copy = ROUTE_COPY[certId];
+    var children = [
+      el("div", { class: "accent-bar", style: "background:" + ACCENTS[certId] })
+    ];
+    if (opts.stepNum) children.push(el("div", { class: "step-num" }, [String(opts.stepNum)]));
+    children.push(el("h3", {}, [cert.name]));
+    children.push(el("div", { class: "meta" }, [cert.code + " · " + cert.cost + " · " + cert.questions + " questions"]));
+    if (opts.flavor && copy) children.push(el("div", { class: "flavor" }, [copy.flavor]));
+    else children.push(el("div", { class: "desc" }, [cert.tagline]));
+    children.push(el("div", { class: "progress-row" }, [
+      el("div", { class: "progress-track" }, [el("div", { class: "progress-fill", style: "width:" + pct + "%; background:" + ACCENTS[certId] })]),
+      el("div", { class: "progress-pct" }, [pct + "%"])
+    ]));
+    children.push(el("div", { class: "cta" }, [pct > 0 ? "Continue →" : "Start →"]));
+    var card = el("div", { class: "track-card milestone-card", onclick: go("#/track/" + certId) }, children);
+    return card;
+  }
+
+  function road(extraClass, forCertId) {
+    var traveled = forCertId && certCompletionPct(forCertId) > 0;
+    var r = el("div", { class: "route-road v" + (extraClass ? " " + extraClass : "") + (traveled ? " traveled" : "") });
+    if (traveled) r.style.setProperty("--track-accent", ACCENTS[forCertId]);
+    return r;
+  }
+
+  function pin(icon, label) {
+    return el("div", { class: "pin" }, [
+      el("div", { class: "badge-icon" }, [icon]),
+      el("div", { class: "pin-label" }, [label])
+    ]);
+  }
+
   function renderHome(root) {
     renderTopbar(null);
-    var shell = el("div", { class: "shell" });
+    var shell = el("div", { class: "shell wide" });
 
     shell.appendChild(el("div", { class: "hero" }, [
       el("span", { class: "eyebrow" }, ["Learning path"]),
       el("h1", {}, ["Claude Certification Study Path"]),
       el("p", { class: "lede" }, [
-        "A self-paced, interactive walkthrough of all four Claude Certification exams — with lessons, " +
-        "worked examples, checkpoint questions, full practice exams, and flashcards for each domain. " +
-        "Everything runs locally in your browser; nothing is uploaded anywhere."
+        "Four exams, one long afternoon of denial before you actually start studying. This walks you through all of " +
+        "them — lessons, practice questions, full mock exams, and flashcards — right here in your browser. Nothing " +
+        "gets uploaded anywhere, and nobody's watching you flub the multi-select questions."
       ]),
       el("div", { class: "disclaimer" }, [
         "Independent, community-built study aid — not produced, reviewed, or endorsed by Anthropic. " +
@@ -229,40 +284,76 @@
       ])
     ]));
 
-    var grid = el("div", { class: "track-grid" });
+    var tiles = el("div", { class: "tile-row" });
     CERT_ORDER.forEach(function (id, i) {
-      var cert = CERTS[id];
-      if (!cert) return;
-      var pct = certCompletionPct(id);
-      var card = el("div", { class: "track-card", onclick: go("#/track/" + id) }, [
-        el("div", { class: "accent-bar", style: "background:" + ACCENTS[id] }),
-        el("div", { class: "step-num" }, [String(i + 1)]),
-        el("h3", {}, [cert.name]),
-        el("div", { class: "meta" }, [cert.code + " · " + cert.cost + " · " + cert.questions + " questions"]),
-        el("div", { class: "desc" }, [cert.tagline]),
-        el("div", { class: "progress-row" }, [
-          el("div", { class: "progress-track" }, [el("div", { class: "progress-fill", style: "width:" + pct + "%; background:" + ACCENTS[id] })]),
-          el("div", { class: "progress-pct" }, [pct + "%"])
-        ]),
-        el("div", { class: "cta" }, [pct > 0 ? "Continue →" : "Start →"])
-      ]);
-      grid.appendChild(card);
+      if (!CERTS[id]) return;
+      tiles.appendChild(renderCertCard(id, { stepNum: i + 1 }));
     });
-    shell.appendChild(grid);
+    shell.appendChild(tiles);
+
+    // ------------------------------------------------------------- route map
+    var map = el("div", { class: "route-map" });
+    map.appendChild(el("div", { class: "route-intro" }, [
+      el("h2", { style: "margin-top:0" }, ["The route"]),
+      el("p", {}, [
+        "One mandatory first stop, then the road splits. No prerequisites, no wrong turns — just different destinations depending on what you actually do at work."
+      ])
+    ]));
+
+    map.appendChild(pin("🚦", "Start here"));
+    map.appendChild(road(null, "associate"));
+    map.appendChild(el("div", { class: "milestone-wrap", style: "width:100%; display:flex; justify-content:center;" }, [renderCertCard("associate", { flavor: true })]));
+    map.appendChild(road(null, "associate"));
+
+    // fork — desktop SVG version
+    var forkSvg = el("div", { class: "route-fork-wrap desktop-fork" });
+    forkSvg.innerHTML =
+      '<svg viewBox="0 0 240 70" preserveAspectRatio="xMidYMid meet">' +
+      '<path class="road-bed" d="M120,0 C120,30 60,25 60,70" />' +
+      '<path class="road-bed" d="M120,0 C120,30 180,25 180,70" />' +
+      '<path class="road-dash" d="M120,0 C120,30 60,25 60,70" />' +
+      '<path class="road-dash" d="M120,0 C120,30 180,25 180,70" />' +
+      '</svg>';
+    map.appendChild(forkSvg);
+    map.appendChild(el("div", { class: "fork-label" }, ["🔀 The road forks here — pick based on what you actually do, not which sounds cooler."]));
+    map.appendChild(el("div", { class: "route-road v fork-mobile" }));
+
+    var branches = el("div", { class: "route-branches" });
+
+    var devBranch = el("div", { class: "branch" }, [
+      el("div", { class: "branch-label" }, ["Left fork"]),
+      renderCertCard("developer", { flavor: true }),
+      road("short", "developer"),
+      pin("🏁", "End of the road — no further cert needed to ship.")
+    ]);
+    branches.appendChild(devBranch);
+
+    var archBranch = el("div", { class: "branch" }, [
+      el("div", { class: "branch-label" }, ["Right fork"]),
+      renderCertCard("architect-foundations", { flavor: true }),
+      road(null, "architect-foundations"),
+      renderCertCard("architect-professional", { flavor: true }),
+      road("short", "architect-professional"),
+      pin("🏔", "Summit — you're now the one other architects call.")
+    ]);
+    branches.appendChild(archBranch);
+
+    map.appendChild(branches);
+    shell.appendChild(map);
 
     shell.appendChild(el("h2", {}, ["How this works"]));
     var two = el("div", { class: "two-col" });
     two.appendChild(el("div", {}, [
-      el("h3", {}, ["1. Walk the roadmap"]),
-      el("p", {}, ["Each certification breaks into its official exam domains, weighted exactly as Anthropic weights them. Read the lesson for a domain, answer a couple of checkpoint questions, then take that domain's quiz."]),
-      el("h3", {}, ["2. Sit a full practice exam"]),
-      el("p", {}, ["Once you've cleared the domains you're unsure about, take a full-length practice exam mixing questions from every domain, and see a domain-by-domain score breakdown."])
+      el("h3", {}, ["Full practice exams"]),
+      el("p", {}, ["Once you've cleared the domains you're unsure about, take a full-length practice exam mixing questions from every domain, and see a domain-by-domain score breakdown."]),
+      el("h3", {}, ["Flashcards"]),
+      el("p", {}, ["Flip through flashcards for terms, mechanisms, and anti-patterns pulled straight from the exam blueprint. Mark cards “know it” to retire them from rotation — your mastery is saved locally."])
     ]));
     two.appendChild(el("div", {}, [
-      el("h3", {}, ["3. Drill with flashcards"]),
-      el("p", {}, ["Flip through flashcards for terms, mechanisms, and anti-patterns pulled straight from the exam blueprint. Mark cards “know it” to retire them from rotation — your mastery is saved locally."]),
-      el("h3", {}, ["4. Track progress"]),
-      el("p", {}, ["Progress is stored in your browser's localStorage only — per certification, per domain. Clear your browser data and it resets; nothing leaves your machine."])
+      el("h3", {}, ["Your progress, your machine"]),
+      el("p", {}, ["Progress is stored in your browser's localStorage only — per certification, per domain. Clear your browser data and it resets; nothing leaves your machine."]),
+      el("h3", {}, ["No prerequisites, really"]),
+      el("p", {}, ["Anthropic doesn't gate any of the four exams behind another — the roadmap above reflects what the work looks like, not a checkpoint system."])
     ]));
     shell.appendChild(two);
 

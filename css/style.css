@@ -26,6 +26,9 @@
   --c-arch-f:    #e87ba4;   /* magenta */
   --c-arch-p:    #eda100;   /* yellow */
 
+  --road-asphalt: #3a3a38;
+  --road-line:    #fab219;
+
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 16px;
@@ -60,6 +63,9 @@
     --c-developer: #008300;
     --c-arch-f:    #d55181;
     --c-arch-p:    #c98500;
+
+    --road-asphalt: #55534e;
+    --road-line:    #fab219;
   }
 }
 :root[data-theme="dark"] {
@@ -85,6 +91,9 @@
   --c-developer: #008300;
   --c-arch-f:    #d55181;
   --c-arch-p:    #c98500;
+
+  --road-asphalt: #55534e;
+  --road-line:    #fab219;
 }
 
 * { box-sizing: border-box; }
@@ -175,28 +184,31 @@ p { color: var(--text-secondary); }
 /* ---------- home: hero ---------- */
 
 .hero { padding: 8px 0 12px; }
+.hero .lede { max-width: 78ch; }
 .hero .disclaimer {
   margin-top: 14px;
   font-size: 0.82rem;
   color: var(--text-muted);
   border-left: 3px solid var(--gridline);
   padding-left: 12px;
-  max-width: 62ch;
+  max-width: 78ch;
 }
 
-/* ---------- track cards (home grid) ---------- */
+/* ---------- track cards (square — used for tile row + roadmap milestones) ---------- */
 
-.track-grid {
+.track-grid, .tile-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 16px;
   margin-top: 24px;
 }
+.tile-row { grid-template-columns: repeat(4, 1fr); }
+.track-grid { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+
 .track-card {
   position: relative;
   background: var(--surface-raised);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: 3px;
   padding: 20px;
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
@@ -206,9 +218,9 @@ p { color: var(--text-secondary); }
   text-align: left;
 }
 .track-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--border-strong); }
-.track-card .accent-bar { position: absolute; top: 0; left: 0; right: 0; height: 4px; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+.track-card .accent-bar { position: absolute; top: 0; left: 0; right: 0; height: 4px; }
 .track-card .step-num {
-  width: 26px; height: 26px; border-radius: 50%;
+  width: 26px; height: 26px; border-radius: 3px;
   display: flex; align-items: center; justify-content: center;
   font-size: 0.78rem; font-weight: 700;
   background: var(--gridline); color: var(--text-secondary);
@@ -218,6 +230,104 @@ p { color: var(--text-secondary); }
 .track-card .desc { font-size: 0.85rem; color: var(--text-secondary); flex-grow: 1; }
 .track-card .progress-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
 .track-card .cta { font-size: 0.82rem; font-weight: 600; }
+
+@media (max-width: 860px) {
+  .tile-row { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 520px) {
+  .tile-row { grid-template-columns: 1fr; }
+}
+
+/* ---------- route map (the road-trip roadmap) ---------- */
+
+.route-map {
+  margin: 40px 0 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.route-intro { text-align: center; max-width: 60ch; margin: 0 auto 8px; }
+.route-intro p { margin-top: 4px; }
+
+.pin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+.pin .badge-icon {
+  width: 40px; height: 40px;
+  border-radius: 3px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.2rem;
+  background: var(--surface-raised);
+  border: 2px solid var(--road-asphalt);
+}
+.pin .pin-label { font-size: 0.78rem; color: var(--text-muted); max-width: 30ch; }
+.pin .pin-label strong { color: var(--text-secondary); }
+
+.route-road {
+  background: var(--road-asphalt);
+  position: relative;
+  flex-shrink: 0;
+}
+.route-road.v { width: 14px; min-height: 36px; }
+.route-road.v::after {
+  content: "";
+  position: absolute;
+  left: 50%; top: 0; bottom: 0;
+  border-left: 2px dashed var(--road-line);
+  transform: translateX(-50%);
+}
+.route-road.traveled { background: var(--track-accent, var(--road-asphalt)); }
+.route-road.traveled::after { border-left-color: color-mix(in srgb, var(--page) 55%, white 45%); opacity: 0.8; }
+
+.milestone-card { width: 100%; max-width: 380px; }
+.milestone-card .flavor { font-size: 0.82rem; font-style: italic; color: var(--text-muted); margin: -2px 0 2px; }
+
+.route-fork-wrap { width: 100%; max-width: 620px; margin: 0 auto; }
+.route-fork-wrap svg { display: block; width: 100%; height: auto; }
+.route-fork-wrap .road-bed { fill: none; stroke: var(--road-asphalt); stroke-width: 14; stroke-linecap: round; }
+.route-fork-wrap .road-dash { fill: none; stroke: var(--road-line); stroke-width: 2; stroke-dasharray: 7 8; stroke-linecap: round; }
+.fork-label {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 6px 0;
+}
+.fork-mobile { display: none; }
+
+.route-branches {
+  display: flex;
+  gap: 32px;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+  max-width: 820px;
+}
+.branch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+.branch-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+@media (max-width: 720px) {
+  .route-fork-wrap.desktop-fork { display: none; }
+  .fork-mobile { display: block; }
+  .route-branches { flex-direction: column; gap: 40px; }
+  .branch { max-width: 380px; }
+}
 
 .progress-track {
   flex-grow: 1;
