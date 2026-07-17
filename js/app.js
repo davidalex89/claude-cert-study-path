@@ -136,6 +136,27 @@
   function navigate(hash) { window.location.hash = hash; }
   function go(hash) { return function (e) { if (e) e.preventDefault(); navigate(hash); }; }
 
+  // Intervals (the exam timer) are torn down on every route change so a running
+  // clock can't outlive the page that owns it.
+  var liveIntervals = [];
+  function registerInterval(id) { liveIntervals.push(id); return id; }
+  function clearIntervals() {
+    liveIntervals.forEach(clearInterval);
+    liveIntervals = [];
+  }
+
+  // Same idea for document-level key handlers (flashcard shortcuts): a page that
+  // is no longer rendered must not keep responding to keystrokes.
+  var liveKeyHandlers = [];
+  function registerKeyHandler(fn) {
+    document.addEventListener("keydown", fn);
+    liveKeyHandlers.push(fn);
+  }
+  function clearKeyHandlers() {
+    liveKeyHandlers.forEach(function (fn) { document.removeEventListener("keydown", fn); });
+    liveKeyHandlers = [];
+  }
+
   // ---------------------------------------------------------------------
   // router
   // ---------------------------------------------------------------------
@@ -147,6 +168,8 @@
 
   function render() {
     var root = document.getElementById("app");
+    clearIntervals();
+    clearKeyHandlers();
     root.innerHTML = "";
     var parts = parseHash();
     window.scrollTo(0, 0);
@@ -610,10 +633,77 @@
     return widgetShell("🎯", spec.title || "Quick check", body);
   }
 
+  function renderSequence(spec) {
+    var body = el("div", {});
+    if (spec.instructions) body.appendChild(el("p", { class: "classify-instructions" }, [spec.instructions]));
+
+    var picked = [];              // indices into spec.items, in the order clicked
+    var checked = false;
+    var listWrap = el("div", { class: "seq-list" });
+    var feedback = el("div", {});
+    var actions = el("div", { class: "seq-actions" });
+    var shuffled = shuffle(spec.items.map(function (item, i) { return { item: item, origIndex: i }; }));
+
+    function draw() {
+      listWrap.innerHTML = "";
+      shuffled.forEach(function (entry, displayIdx) {
+        var pos = picked.indexOf(displayIdx);
+        var row = el("button", { class: "seq-item" + (pos !== -1 ? " picked" : ""), type: "button" }, [
+          el("span", { class: "seq-badge" }, [pos !== -1 ? String(pos + 1) : ""]),
+          el("span", { class: "seq-text" }, [entry.item.text])
+        ]);
+        if (checked) {
+          // correct position for this item is its index in the authored (unshuffled) array
+          var correctPos = entry.origIndex;
+          row.classList.add(pos === correctPos ? "seq-right" : "seq-wrong");
+          row.appendChild(el("span", { class: "seq-answer" }, ["#" + (correctPos + 1)]));
+        }
+        row.addEventListener("click", function () {
+          if (checked) return;
+          var at = picked.indexOf(displayIdx);
+          if (at === -1) picked.push(displayIdx);
+          else picked.splice(at, 1);
+          draw();
+        });
+        listWrap.appendChild(row);
+      });
+
+      actions.innerHTML = "";
+      var checkBtn = el("button", { class: "btn btn-sm btn-primary", type: "button" }, ["Check order"]);
+      checkBtn.disabled = checked || picked.length !== spec.items.length;
+      checkBtn.addEventListener("click", function () {
+        checked = true;
+        var allRight = picked.every(function (displayIdx, pos) { return shuffled[displayIdx].origIndex === pos; });
+        feedback.innerHTML = "";
+        feedback.appendChild(el("div", { class: "scenario-feedback " + (allRight ? "good" : "bad") }, [
+          el("span", { class: "sf-verdict" }, [allRight ? "✓ Correct order" : "✗ Not the right order — the badges show where each step actually belongs"]),
+          spec.explanation
+        ]));
+        draw();
+      });
+      var resetBtn = el("button", { class: "btn btn-sm", type: "button" }, ["Reset"]);
+      resetBtn.addEventListener("click", function () {
+        picked = []; checked = false; feedback.innerHTML = "";
+        shuffled = shuffle(shuffled);
+        draw();
+      });
+      actions.appendChild(checkBtn);
+      actions.appendChild(resetBtn);
+      actions.appendChild(el("span", { class: "seq-count" }, [picked.length + " / " + spec.items.length + " placed"]));
+    }
+
+    draw();
+    body.appendChild(listWrap);
+    body.appendChild(actions);
+    body.appendChild(feedback);
+    return widgetShell("🔢", spec.title || "Put these in order", body);
+  }
+
   function renderInteractive(spec) {
     if (spec.type === "stepThrough") return renderStepThrough(spec);
     if (spec.type === "scenario") return renderScenario(spec);
     if (spec.type === "classify") return renderClassifyGame(spec);
+    if (spec.type === "sequence") return renderSequence(spec);
     return null;
   }
 
@@ -742,9 +832,10 @@
     shell.appendChild(step.kind === "checks" ? renderChecksNode(domain, certId) : renderSectionNode(step.section));
 
     var nav = el("div", { class: "btn-row" }, [
-      stepIndex === 0
-        ? el("a", { class: "btn", onclick: go("#/track/" + certId + "/domain/" + domainId) }, ["← Overview"])
-        : el("a", { class: "btn", onclick: go("#/track/" + certId + "/domain/" + domainId + "/step/" + (stepIndex - 1)) }, ["← Back"]),
+      el("a", { class: "btn", onclick: go("#/track/" + certId + "/domain/" + domainId) }, ["↑ Lesson overview"]),
+      stepIndex > 0
+        ? el("a", { class: "btn", onclick: go("#/track/" + certId + "/domain/" + domainId + "/step/" + (stepIndex - 1)) }, ["← Back"])
+        : null,
       !isLast ? el("a", { class: "btn btn-primary", onclick: go("#/track/" + certId + "/domain/" + domainId + "/step/" + (stepIndex + 1)) }, ["Next →"]) : null,
       isLast ? el("a", { class: "btn btn-primary", onclick: go("#/track/" + certId + "/domain/" + domainId + "/quiz") }, ["Take domain quiz →"]) : null
     ]);
@@ -820,7 +911,7 @@
       var expl = el("div", { class: "explanation" }, [verdict, el("div", {}, [q.explanation])]);
       explanationBox.appendChild(expl);
       submitBtn.setAttribute("disabled", "true");
-      if (onAnswered) onAnswered(isCorrect);
+      if (onAnswered) onAnswered(isCorrect, selected.slice());
     });
     actions.appendChild(submitBtn);
     card.appendChild(actions);
@@ -837,15 +928,16 @@
     if (!domain) return renderNotFound(root);
     renderTopbar(certId);
 
-    var questions = shuffle(domain.quiz || []);
     runQuizFlow(root, {
       certId: certId,
       title: domain.title + " — Domain Quiz",
       crumbs: [["Home", "#/"], [cert.name, "#/track/" + certId], [domain.title, "#/track/" + certId + "/domain/" + domainId]],
-      questions: questions,
+      questions: shuffle(domain.quiz || []),
       backHash: "#/track/" + certId + "/domain/" + domainId,
       onFinish: function (score, total) { recordDomainQuiz(certId, domainId, score, total); },
-      retryHash: "#/track/" + certId + "/domain/" + domainId + "/quiz"
+      // Retry re-runs the flow in place: navigating to the hash we're already on
+      // would not fire hashchange, so the button would do nothing.
+      onRetry: function () { renderDomainQuiz(root, certId, domainId); }
     });
   }
 
@@ -857,7 +949,9 @@
     renderTopbar(certId);
     var allQ = [];
     cert.domains.forEach(function (d) { (d.quiz || []).forEach(function (q) { allQ.push(q); }); });
-    var questions = shuffle(allQ);
+
+    // Mirror the real sitting: the exam's own item count, drawn from the bank.
+    var questions = shuffle(allQ).slice(0, Math.min(cert.questions, allQ.length));
 
     runQuizFlow(root, {
       certId: certId,
@@ -867,12 +961,14 @@
       backHash: "#/track/" + certId,
       isExam: true,
       cert: cert,
+      timeLimitMin: 120,
       onFinish: function (score, total) { recordExam(certId, score, total); },
-      retryHash: "#/track/" + certId + "/exam"
+      onRetry: function () { renderExam(root, certId); }
     });
   }
 
   function runQuizFlow(root, cfg) {
+    root.innerHTML = "";
     var shell = el("div", { class: "shell" });
     var crumbs = el("div", { class: "crumbs" });
     cfg.crumbs.forEach(function (c, i) {
@@ -888,18 +984,51 @@
       return;
     }
 
-    var state = { i: 0, score: 0, perDomain: {} };
+    // state.answers records every graded question so results can show a review.
+    var state = { i: 0, score: 0, perDomain: {}, answers: [], timeUp: false };
     var body = el("div", {});
+
+    var timerEl = null;
+    if (cfg.timeLimitMin) {
+      var secsLeft = cfg.timeLimitMin * 60;
+      timerEl = el("div", { class: "exam-timer" }, []);
+      var tick = function () {
+        var mins = Math.floor(Math.abs(secsLeft) / 60);
+        var secs = Math.abs(secsLeft) % 60;
+        var label = (secsLeft < 0 ? "+" : "") + mins + ":" + (secs < 10 ? "0" : "") + secs;
+        timerEl.innerHTML = "";
+        timerEl.appendChild(el("span", { class: "et-label" }, [state.timeUp ? "Over time" : "Time remaining"]));
+        timerEl.appendChild(el("span", { class: "et-clock" }, [label]));
+        timerEl.classList.toggle("warn", secsLeft <= 600 && secsLeft > 0);
+        timerEl.classList.toggle("over", secsLeft <= 0);
+        if (secsLeft <= 0) state.timeUp = true;
+        secsLeft--;
+      };
+      tick();
+      // Keep counting past zero rather than hard-stopping: this is practice, and
+      // knowing how far over you ran is more useful than a locked screen.
+      registerInterval(setInterval(tick, 1000));
+      shell.appendChild(timerEl);
+      shell.appendChild(el("p", { class: "lede" }, [
+        "Timed like the real sitting: " + cfg.questions.length + " questions, " + cfg.timeLimitMin + " minutes. The clock keeps running past zero so you can see your true pace."
+      ]));
+    }
+
     shell.appendChild(body);
     root.appendChild(shell);
 
     function renderStep() {
       body.innerHTML = "";
       var total = cfg.questions.length;
-      body.appendChild(el("p", { class: "lede" }, ["Question " + (state.i + 1) + " of " + total]));
+      var pctDone = Math.round((state.i / total) * 100);
+      body.appendChild(el("div", { class: "quiz-progress" }, [
+        el("div", { class: "qp-track" }, [el("div", { class: "qp-fill", style: "width:" + pctDone + "%; background:" + ACCENTS[cfg.certId] })]),
+        el("div", { class: "qp-label" }, ["Question " + (state.i + 1) + " of " + total])
+      ]));
       var q = cfg.questions[state.i];
-      var card = renderQuestionCard(q, cfg.certId, function (isCorrect) {
+      var card = renderQuestionCard(q, cfg.certId, function (isCorrect, selected) {
         if (isCorrect) state.score++;
+        state.answers.push({ q: q, selected: selected, isCorrect: isCorrect });
         if (q.domainId) {
           var pd = state.perDomain[q.domainId] = state.perDomain[q.domainId] || { correct: 0, total: 0, title: q.domainTitle };
           pd.total++;
@@ -916,46 +1045,78 @@
     }
 
     function renderResults() {
+      clearIntervals();
+      if (timerEl) timerEl.classList.add("done");
       body.innerHTML = "";
       var total = cfg.questions.length;
       var pct = Math.round((state.score / total) * 100);
       var pass = pct >= 80;
       if (cfg.onFinish) cfg.onFinish(state.score, total);
 
-      var hero = el("div", { class: "result-hero" }, [
+      body.appendChild(el("div", { class: "result-hero" }, [
         el("div", { class: "score" }, [state.score + " / " + total]),
         el("div", { class: "status " + (pass ? "pass" : "fail") }, [pct + "% correct"]),
         el("div", { class: "sub" }, [
           cfg.isExam
-            ? ("Illustrative only — the real exam is scaled 100–1,000 with a cut score of 720 (≈ 80% correct on a criterion-referenced test). This isn't a predicted scaled score.")
+            ? "Illustrative only — the real exam is scaled 100–1,000 with a cut score of 720 (≈ 80% correct on a criterion-referenced test). This isn't a predicted scaled score."
             : "Domain mastery threshold used across this site: 80%."
         ])
-      ]);
-      body.appendChild(hero);
+      ]));
 
       if (cfg.isExam) {
         body.appendChild(el("h2", {}, ["Score by domain"]));
+        body.appendChild(el("p", {}, ["The real score report breaks down percent-correct by domain too — weakest domains are where revision pays most."]));
         var breakdown = el("div", { class: "domain-breakdown" });
         cfg.cert.domains.forEach(function (d) {
           var pd = state.perDomain[d.id];
           var dpct = pd && pd.total ? Math.round((pd.correct / pd.total) * 100) : null;
           breakdown.appendChild(el("div", { class: "db-row" }, [
-            el("div", {}, [d.title]),
-            el("div", { class: "db-track" }, [el("div", { class: "db-fill", style: "width:" + (dpct || 0) + "%; background:" + (ACCENTS[cfg.certId]) })]),
+            el("a", { class: "db-name", onclick: go("#/track/" + cfg.certId + "/domain/" + d.id) }, [d.title]),
+            el("div", { class: "db-track" }, [el("div", { class: "db-fill", style: "width:" + (dpct || 0) + "%; background:" + ACCENTS[cfg.certId] })]),
             el("div", {}, [dpct == null ? "—" : dpct + "%"])
           ]));
         });
         body.appendChild(breakdown);
       }
 
+      var missed = state.answers.filter(function (a) { return !a.isCorrect; });
+      body.appendChild(el("h2", {}, [missed.length ? "Review what you missed (" + missed.length + ")" : "Nothing missed 🎉"]));
+      if (missed.length) {
+        body.appendChild(el("p", {}, ["The questions you got wrong, with what you picked and why the right answer is right."]));
+        missed.forEach(function (a) {
+          var card = el("div", { class: "q-card review" });
+          card.appendChild(el("div", { class: "q-meta" }, [
+            a.q.domainTitle || "Practice question",
+            a.q.source === "official" ? el("span", { class: "source-tag" }, ["Official sample"]) : null
+          ]));
+          card.appendChild(el("div", { class: "q-text" }, [a.q.question]));
+          var opts = el("div", { class: "q-options" });
+          a.q.options.forEach(function (optText, i) {
+            var isAns = a.q.correct.indexOf(i) !== -1;
+            var isSel = a.selected.indexOf(i) !== -1;
+            if (!isAns && !isSel) return; // only show the right answer and what they picked
+            opts.appendChild(el("div", { class: "q-option " + (isAns ? "correct" : "incorrect"), "data-disabled": "true" }, [
+              el("div", { class: "mark" }, [isAns ? "✓" : "✗"]),
+              el("div", {}, [
+                optText,
+                el("span", { class: "review-tag" }, [isAns ? (isSel ? " — correct (you picked this)" : " — correct answer") : " — you picked this"])
+              ])
+            ]));
+          });
+          card.appendChild(opts);
+          card.appendChild(el("div", { class: "explanation" }, [a.q.explanation]));
+          body.appendChild(card);
+        });
+      } else {
+        body.appendChild(el("p", {}, ["Clean sweep — every question in this run was correct."]));
+      }
+
+      var retryBtn = el("button", { class: "btn btn-primary" }, ["Retry (reshuffled)"]);
+      retryBtn.addEventListener("click", function () { cfg.onRetry(); });
       body.appendChild(el("div", { class: "btn-row" }, [
-        el("a", { class: "btn btn-primary", onclick: go(cfg.retryHash) }, ["Retry"]),
+        retryBtn,
         el("a", { class: "btn", onclick: go(cfg.backHash) }, ["Back"])
       ]));
-      // force re-entry into a fresh quiz instance rather than reusing scroll state
-      window.addEventListener("hashchange", function reload() {
-        window.removeEventListener("hashchange", reload);
-      });
     }
 
     renderStep();
@@ -1013,6 +1174,7 @@
     root.appendChild(shell);
 
     var deck = [];
+    var keyActions = null;   // rebound by draw() to the currently visible card
     var pos = 0;
 
     function masteredSet() {
@@ -1046,6 +1208,7 @@
       counter.textContent = masteredCount + " / " + totalPool + " mastered";
 
       if (!deck.length) {
+        keyActions = null;   // no visible card — shortcuts must not fire on a retired one
         stageWrap.appendChild(el("div", { class: "flash-empty" }, [
           el("h3", {}, ["🎉 Nothing left in rotation"]),
           el("p", {}, ["Every card in this set is marked as known. Uncheck “Hide mastered” to review them again."])
@@ -1070,44 +1233,55 @@
         ])
       ]);
       flash.appendChild(inner);
-      flash.addEventListener("click", function () {
+      var doFlip = function () {
         flipped = !flipped;
         flash.classList.toggle("flipped", flipped);
-      });
+      };
+      flash.addEventListener("click", doFlip);
       stageWrap.appendChild(el("div", { class: "flash-stage" }, [flash]));
 
-      var actions = el("div", { class: "flash-actions" }, [
-        (function () {
-          var b = el("button", { class: "btn btn-again" }, ["← Still learning"]);
-          b.addEventListener("click", function () {
-            toggleMastered(certId, card.domainId, card.id, false);
-            cp = getCertProgress(certId);
-            advance();
-          });
-          return b;
-        })(),
-        (function () {
-          var b = el("button", { class: "btn btn-know" }, ["Know it ✓"]);
-          b.addEventListener("click", function () {
-            toggleMastered(certId, card.domainId, card.id, true);
-            cp = getCertProgress(certId);
-            if (hideCb.checked) {
-              deck.splice(pos, 1);
-              draw();
-            } else {
-              advance();
-            }
-          });
-          return b;
-        })()
-      ]);
-      stageWrap.appendChild(actions);
+      var markUnknown = function () {
+        toggleMastered(certId, card.domainId, card.id, false);
+        cp = getCertProgress(certId);
+        advance();
+      };
+      var markKnown = function () {
+        toggleMastered(certId, card.domainId, card.id, true);
+        cp = getCertProgress(certId);
+        if (hideCb.checked) {
+          deck.splice(pos, 1);
+          draw();
+        } else {
+          advance();
+        }
+      };
+      keyActions = { flip: doFlip, known: markKnown, unknown: markUnknown };
+
+      var againBtn = el("button", { class: "btn btn-again" }, ["← Still learning"]);
+      againBtn.addEventListener("click", markUnknown);
+      var knowBtn = el("button", { class: "btn btn-know" }, ["Know it ✓"]);
+      knowBtn.addEventListener("click", markKnown);
+      stageWrap.appendChild(el("div", { class: "flash-actions" }, [againBtn, knowBtn]));
+
       stageWrap.appendChild(el("div", { class: "btn-row", style: "justify-content:center" }, [
         el("span", { class: "flash-counter" }, ["Card " + (pos + 1) + " of " + deck.length])
+      ]));
+      stageWrap.appendChild(el("div", { class: "flash-keys" }, [
+        el("span", {}, [el("span", { class: "kbd" }, ["Space"]), " flip"]),
+        el("span", {}, [el("span", { class: "kbd" }, ["→"]), " know it"]),
+        el("span", {}, [el("span", { class: "kbd" }, ["←"]), " still learning"])
       ]));
     }
 
     function advance() { pos = (pos + 1) % deck.length; draw(); }
+
+    registerKeyHandler(function (e) {
+      if (!keyActions) return;
+      if (e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
+      if (e.key === " " || e.key === "Spacebar") { e.preventDefault(); keyActions.flip(); }
+      else if (e.key === "ArrowRight") { e.preventDefault(); keyActions.known(); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); keyActions.unknown(); }
+    });
 
     buildDeck();
   }
@@ -1135,6 +1309,25 @@
       el("p", {}, ["This site can't register you for anything. To schedule an official exam, go through Anthropic's Partner Academy, download the current Exam Guide, and schedule through Pearson VUE."]),
       el("h3", {}, ["Your data"]),
       el("p", {}, ["Progress (lessons read, quiz scores, flashcard mastery) is stored only in your browser's localStorage. Nothing is sent to a server — there is no server. Clearing your browser storage resets everything."]),
+      (function () {
+        var wrap = el("div", { class: "btn-row" });
+        var btn = el("button", { class: "btn" }, ["Reset all my progress"]);
+        btn.addEventListener("click", function () {
+          if (btn.getAttribute("data-armed") !== "true") {
+            btn.setAttribute("data-armed", "true");
+            btn.classList.add("btn-danger");
+            btn.textContent = "Click again to confirm — this can't be undone";
+            return;
+          }
+          try { localStorage.removeItem(STORE_KEY); } catch (e) {}
+          btn.classList.remove("btn-danger");
+          btn.removeAttribute("data-armed");
+          btn.textContent = "✓ Progress cleared";
+          btn.setAttribute("disabled", "true");
+        });
+        wrap.appendChild(btn);
+        return wrap;
+      })(),
       el("h3", {}, ["Open source"]),
       el("p", {}, ["This project is open source. Corrections to the domain content, additional practice questions, and new flashcards are welcome via pull request."])
     ]));
