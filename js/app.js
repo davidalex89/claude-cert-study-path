@@ -254,15 +254,61 @@
     return node;
   }
 
-  function laneConnector(label) {
-    var svg = svgEl("svg", { width: 20, height: 40, viewBox: "0 0 20 40" });
-    svg.appendChild(svgEl("path", { d: "M10,0 L10,40", class: "road-bed" }));
-    svg.appendChild(svgEl("path", { d: "M10,0 L10,40", class: "road-dash" }));
-    return el("div", { class: "lane-connector" }, [svg, el("div", { class: "lc-label" }, [label])]);
-  }
+  // Compact schematic of the whole program: Associate is the shared first stop,
+  // then the road forks — Developer dead-ends, the Architect road continues to
+  // Professional. Clicking a node drives the carousel below. onSelect(index).
+  function renderMiniRoadmap(onSelect) {
+    var W = 300, H = 168;
+    var pts = {
+      "associate": { x: 30, y: 84 },
+      "developer": { x: 210, y: 42 },
+      "architect-foundations": { x: 158, y: 128 },
+      "architect-professional": { x: 250, y: 128 }
+    };
+    var roads = [
+      "M30,84 L110,84",                       // Associate → fork
+      "M110,84 C150,84 168,42 210,42",        // fork → Developer
+      "M210,42 L272,42",                      // Developer → dead-end stub
+      "M110,84 C140,84 122,128 158,128",      // fork → Architect-Foundations
+      "M158,128 L250,128"                     // Architect-F → Architect-Pro
+    ];
+    var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, class: "mm-svg" });
+    roads.forEach(function (d) { svg.appendChild(svgEl("path", { d: d, class: "road-bed" })); });
+    roads.forEach(function (d) { svg.appendChild(svgEl("path", { d: d, class: "road-dash" })); });
 
-  function laneEndNote(label) {
-    return el("div", { class: "lane-end-note" }, [label]);
+    // dead-end + summit flags
+    var flag = svgEl("text", { x: 280, y: 46, class: "mm-flag" }); flag.textContent = "🏁"; svg.appendChild(flag);
+    var peak = svgEl("text", { x: 258, y: 132, class: "mm-flag" }); peak.textContent = "🏔"; svg.appendChild(peak);
+
+    var nodeEls = {};
+    CERT_ORDER.forEach(function (id, i) {
+      var p = pts[id]; if (!p) return;
+      var g = svgEl("g", { class: "mm-node", tabindex: "0", role: "button" });
+      var title = svgEl("title", {}); title.textContent = CERTS[id].name; g.appendChild(title);
+      var c = svgEl("circle", { cx: p.x, cy: p.y, r: 13 });
+      c.style.setProperty("--accent", ACCENTS[id]);
+      g.appendChild(c);
+      var t = svgEl("text", { x: p.x, y: p.y + 4, class: "mm-num" }); t.textContent = String(i + 1);
+      g.appendChild(t);
+      g.addEventListener("click", function () { onSelect(i); });
+      g.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(i); } });
+      svg.appendChild(g);
+      nodeEls[i] = g;
+    });
+
+    var wrap = el("div", { class: "mini-roadmap" }, [
+      el("div", { class: "mm-title" }, ["The path, cert to cert"]),
+      svg,
+      el("div", { class: "mm-legend" }, [
+        el("strong", {}, ["1 Associate"]), " is the shared start. Then it forks: ",
+        el("strong", {}, ["2 Developer"]), " ends the road, or ",
+        el("strong", {}, ["3 Architect"]), " → ", el("strong", {}, ["4 Professional"]), "."
+      ])
+    ]);
+    return {
+      el: wrap,
+      setActive: function (i) { Object.keys(nodeEls).forEach(function (k) { nodeEls[k].classList.toggle("active", +k === i); }); }
+    };
   }
 
   function renderLane(certId) {
@@ -335,58 +381,89 @@
     renderTopbar(null);
     var shell = el("div", { class: "shell wide" });
 
+    // scrollTo/setActive are used by the mini-roadmap callback (created first),
+    // so declare them as hoisted function declarations and fill the refs below.
+    var carousel, panels = [], dotEls = [], mini, active = 0;
+    function setActive(i) {
+      active = Math.max(0, Math.min(CERT_ORDER.length - 1, i));
+      dotEls.forEach(function (d, di) { d.classList.toggle("active", di === active); });
+      if (mini) mini.setActive(active);
+    }
+    function scrollToCert(i) {
+      i = Math.max(0, Math.min(CERT_ORDER.length - 1, i));
+      if (carousel) carousel.scrollTo({ left: i * carousel.clientWidth, behavior: "smooth" });
+      setActive(i);
+    }
+
+    mini = renderMiniRoadmap(scrollToCert);
+
     shell.appendChild(el("div", { class: "hero" }, [
-      el("span", { class: "eyebrow" }, ["Learning path"]),
-      el("h1", {}, ["Claude Certification Study Path"]),
-      el("p", { class: "lede" }, [
-        "Four exams, one long afternoon of denial before you actually start studying. This walks you through all of " +
-        "them — lessons, practice questions, full mock exams, and flashcards — right here in your browser. Nothing " +
-        "gets uploaded anywhere, and nobody's watching you flub the multi-select questions."
-      ]),
-      el("div", { class: "disclaimer" }, [
-        "Independent, community-built study aid — not produced, reviewed, or endorsed by Anthropic. " +
-        "Domain blueprints are sourced from Anthropic's publicly published Exam Guides (v1.0, July 2026). " +
-        "All practice questions and flashcards here are original and are not drawn from the live exam item bank. See ",
-        el("a", { onclick: go("#/about") }, ["About & sources"]),
-        "."
+      el("div", { class: "hero-row" }, [
+        el("div", { class: "hero-main" }, [
+          el("span", { class: "eyebrow" }, ["Learning path"]),
+          el("h1", {}, ["Claude Certification Study Path"]),
+          el("p", { class: "lede" }, [
+            "Four exams, one long afternoon of denial before you actually start studying. This walks you through all of " +
+            "them — lessons, practice questions, full mock exams, and flashcards — right here in your browser. Nothing " +
+            "gets uploaded anywhere, and nobody's watching you flub the multi-select questions."
+          ]),
+          el("div", { class: "disclaimer" }, [
+            "Independent, community-built study aid — not produced, reviewed, or endorsed by Anthropic. " +
+            "Domain blueprints are sourced from Anthropic's publicly published Exam Guides (v1.0, July 2026). " +
+            "All practice questions and flashcards here are original and are not drawn from the live exam item bank. See ",
+            el("a", { onclick: go("#/about") }, ["About & sources"]),
+            "."
+          ])
+        ]),
+        el("div", { class: "hero-map" }, [mini.el])
       ])
     ]));
 
-    var nav = el("div", { class: "quicknav-row" });
-    CERT_ORDER.forEach(function (id) {
-      if (!CERTS[id]) return;
-      var cert = CERTS[id];
-      var pct = certCompletionPct(id);
-      nav.appendChild(el("div", { class: "quicknav", onclick: go("#/track/" + id) }, [
-        el("span", { class: "qn-dot", style: "background:" + ACCENTS[id] }),
-        el("div", { class: "qn-body" }, [
-          el("div", { class: "qn-name" }, [cert.code]),
-          el("div", { class: "qn-meta" }, [cert.cost + " · " + cert.questions + "Q"])
-        ]),
-        el("div", { class: "qn-pct" }, [pct + "%"])
-      ]));
-    });
-    shell.appendChild(nav);
-
-    // ------------------------------------------------------------- route map
+    // ---------------------------------------------------- certification carousel
     var map = el("div", { class: "route-map" });
-    map.appendChild(el("h2", {}, ["The route"]));
-    map.appendChild(el("p", { class: "route-intro" }, [
-      "Every marker below is a domain from Anthropic's own exam blueprint — hover one for what it covers, click to jump straight into that lesson. One mandatory first lane, then two directions depending on what you actually do at work."
+
+    var prevBtn = el("button", { class: "cc-arrow", type: "button", "aria-label": "Previous certification" }, ["←"]);
+    var nextBtn = el("button", { class: "cc-arrow", type: "button", "aria-label": "Next certification" }, ["→"]);
+    var dots = el("div", { class: "cc-dots" });
+    map.appendChild(el("div", { class: "cc-head" }, [
+      el("div", {}, [
+        el("h2", {}, ["The route"]),
+        el("p", { class: "route-intro" }, [
+          "Four certifications, one scrollable path. Swipe or use the arrows to move between them; every marker inside a lane is a real exam domain — click it to jump straight into that lesson."
+        ])
+      ]),
+      el("div", { class: "cc-controls" }, [prevBtn, dots, nextBtn])
     ]));
 
-    var lanes = ["associate", "developer", "architect-foundations", "architect-professional"].map(renderLane);
-
-    map.appendChild(lanes[0]);
-    map.appendChild(laneConnector("Then pick a lane below, based on what you actually do at work — not which one sounds cooler"));
-    map.appendChild(lanes[1]);
-    map.appendChild(laneEndNote("🏁 End of this road — no further cert needed to ship."));
-    map.appendChild(lanes[2]);
-    map.appendChild(laneConnector("Ready for more?"));
-    map.appendChild(lanes[3]);
-    map.appendChild(laneEndNote("🏔 Summit — you're now the one other architects call."));
-
+    carousel = el("div", { class: "cert-carousel" });
+    CERT_ORDER.forEach(function (id, i) {
+      if (!CERTS[id]) return;
+      var panel = el("div", { class: "cert-panel" }, [renderLane(id)]);
+      carousel.appendChild(panel);
+      panels.push(panel);
+      var dot = el("button", { class: "cc-dot", type: "button", "aria-label": CERTS[id].code, title: CERTS[id].name });
+      dot.style.setProperty("--dot", ACCENTS[id]);
+      dot.addEventListener("click", function () { scrollToCert(i); });
+      dots.appendChild(dot);
+      dotEls.push(dot);
+    });
+    map.appendChild(carousel);
     shell.appendChild(map);
+
+    prevBtn.addEventListener("click", function () { scrollToCert(active - 1); });
+    nextBtn.addEventListener("click", function () { scrollToCert(active + 1); });
+
+    // Keep dots/minimap in sync when the user scroll-swipes the carousel directly.
+    var scrollRaf;
+    carousel.addEventListener("scroll", function () {
+      cancelAnimationFrame(scrollRaf);
+      scrollRaf = requestAnimationFrame(function () {
+        if (!carousel.clientWidth) return;
+        var idx = Math.round(carousel.scrollLeft / carousel.clientWidth);
+        if (idx !== active) setActive(idx);
+      });
+    });
+    setActive(0);
 
     shell.appendChild(el("h2", {}, ["How this works"]));
     var two = el("div", { class: "two-col" });
@@ -410,9 +487,9 @@
 
     root.appendChild(shell);
 
-    lanes.forEach(function (lane) {
-      var scrollEl = lane.querySelector(".lane-scroll");
-      if (scrollEl && scrollEl.scrollWidth <= scrollEl.clientWidth + 2) scrollEl.classList.add("fits");
+    // Only show a lane's right-edge fade when its road actually overflows.
+    shell.querySelectorAll(".lane-scroll").forEach(function (scrollEl) {
+      if (scrollEl.scrollWidth <= scrollEl.clientWidth + 2) scrollEl.classList.add("fits");
     });
   }
 
@@ -756,7 +833,7 @@
     var next = cert.domains[idx + 1];
     var steps = domainSteps(domain);
 
-    var shell = el("div", { class: "shell" });
+    var shell = el("div", { class: "shell reading" });
     shell.appendChild(el("div", { class: "crumbs" }, [
       el("a", { onclick: go("#/") }, ["Home"]), el("span", { class: "sep" }, ["/"]),
       el("a", { onclick: go("#/track/" + certId) }, [cert.name]), el("span", { class: "sep" }, ["/"]),
@@ -811,7 +888,7 @@
     var step = steps[stepIndex];
     var isLast = stepIndex === steps.length - 1;
 
-    var shell = el("div", { class: "shell" });
+    var shell = el("div", { class: "shell reading" });
     shell.appendChild(el("div", { class: "crumbs" }, [
       el("a", { onclick: go("#/") }, ["Home"]), el("span", { class: "sep" }, ["/"]),
       el("a", { onclick: go("#/track/" + certId) }, [cert.name]), el("span", { class: "sep" }, ["/"]),
@@ -969,7 +1046,7 @@
 
   function runQuizFlow(root, cfg) {
     root.innerHTML = "";
-    var shell = el("div", { class: "shell" });
+    var shell = el("div", { class: "shell reading" });
     var crumbs = el("div", { class: "crumbs" });
     cfg.crumbs.forEach(function (c, i) {
       if (i > 0) crumbs.appendChild(el("span", { class: "sep" }, ["/"]));
@@ -1291,7 +1368,7 @@
   // ---------------------------------------------------------------------
   function renderAbout(root) {
     renderTopbar(null);
-    var shell = el("div", { class: "shell" });
+    var shell = el("div", { class: "shell reading" });
     shell.appendChild(el("div", { class: "crumbs" }, [el("a", { onclick: go("#/") }, ["Home"]), el("span", { class: "sep" }, ["/"]), "About"]));
     shell.appendChild(el("h1", {}, ["About this project"]));
     shell.appendChild(el("div", { class: "lesson-section" }, [
