@@ -1410,22 +1410,78 @@
   // ---------------------------------------------------------------------
   // RESOURCES — curated external links (vetted; no exam dumps)
   // ---------------------------------------------------------------------
+  // Every doc URL below was checked to resolve (200). Docs live on
+  // platform.claude.com; Claude Code docs on code.claude.com.
   var RESOURCES = [
     {
-      group: "Official — register, schedule, and read the source",
-      note: "These are the authoritative sources. The exam guides here are the same PDFs this site's domain blueprints, weights, and sample questions are drawn from.",
+      group: "Official — register, schedule, read the source",
+      note: "The authoritative sources. The Exam Guide PDFs (behind the Partner Academy) are the same ones this site's blueprints, weights, and sample questions are drawn from.",
       links: [
-        { title: "Claude Partner Network", url: "https://claude.com/partners", desc: "Certification registration runs through the Anthropic Partner Academy, which requires a Partner Network account with a company-domain email. This is where you request access and download the official Exam Guide PDFs." },
-        { title: "Pearson VUE — Claude Certification Program", url: "https://www.pearsonvue.com/us/en/anthropic.html", desc: "Where you actually schedule and sit the exam — online-proctored from home or at a test center. Handles rescheduling, accommodations, and results." },
-        { title: "Claude documentation", url: "https://docs.claude.com/", desc: "The primary technical reference for everything the exams test: the Messages API, tool use, MCP, the Agent SDK, Claude Code, prompt caching, and more. If a practice question here and the docs ever disagree, the docs win." }
+        { title: "Claude Partner Network", url: "https://claude.com/partners", for: "Register", desc: "Registration runs through the Partner Academy — needs a Partner Network account with a company-domain email. Where you request access and download the official Exam Guides." },
+        { title: "Pearson VUE — Claude Certification Program", url: "https://www.pearsonvue.com/us/en/anthropic.html", for: "Schedule", desc: "Schedule and sit the exam here — online-proctored or at a test center. Handles rescheduling, accommodations, and results." },
+        { title: "Claude documentation", url: "https://docs.claude.com/", for: "All tracks", desc: "The docs home. When a practice question here and the docs ever disagree, the docs win." }
+      ]
+    },
+    {
+      group: "Claude API & core building blocks",
+      note: "The mechanics behind the Developer and Architect exams.",
+      links: [
+        { title: "Messages API reference", url: "https://platform.claude.com/docs/en/api/messages", for: "Developer", desc: "Request/response shape, roles, and the stop_reason field the agentic loop hinges on." },
+        { title: "Tool use — overview", url: "https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview", for: "Developer · Architect", desc: "Defining tools, tool_choice, and how function calling actually works." },
+        { title: "Handling tool calls", url: "https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls", for: "Developer · Architect", desc: "The execute-and-feed-results loop, plus client- vs. server-side tools." },
+        { title: "Streaming", url: "https://platform.claude.com/docs/en/build-with-claude/streaming", for: "Developer", desc: "Server-sent events and incremental responses." },
+        { title: "Extended thinking", url: "https://platform.claude.com/docs/en/build-with-claude/extended-thinking", for: "Developer · Architect", desc: "How thinking/effort levels change model behavior and cost." },
+        { title: "Prompt caching", url: "https://platform.claude.com/docs/en/build-with-claude/prompt-caching", for: "Developer · Architect", desc: "Cache a stable prefix to cut latency and cost — the recurring cost-optimization answer." },
+        { title: "Message Batches API", url: "https://platform.claude.com/docs/en/build-with-claude/batch-processing", for: "Developer · Architect", desc: "Async, high-volume, ~50% cheaper, 24-hour window — batch-vs-realtime tradeoffs." },
+        { title: "Structured outputs", url: "https://platform.claude.com/docs/en/build-with-claude/structured-outputs", for: "Developer · Architect", desc: "Getting reliable JSON out, and validating it." },
+        { title: "Context windows", url: "https://platform.claude.com/docs/en/build-with-claude/context-windows", for: "All tracks", desc: "What fits, how it fills, and why position matters." },
+        { title: "Context editing", url: "https://platform.claude.com/docs/en/build-with-claude/context-editing", for: "Architect", desc: "Pruning and compaction to keep long-running agents reliable." }
+      ]
+    },
+    {
+      group: "Models, prompting & context",
+      note: "Shared across all four exams.",
+      links: [
+        { title: "Models overview", url: "https://platform.claude.com/docs/en/about-claude/models/overview", for: "All tracks", desc: "The current Haiku / Sonnet / Opus lineup and what each is for." },
+        { title: "Choosing a model", url: "https://platform.claude.com/docs/en/about-claude/models/choosing-a-model", for: "All tracks", desc: "The cost / speed / capability tradeoff, made concrete." },
+        { title: "Pricing", url: "https://platform.claude.com/docs/en/about-claude/pricing", for: "Developer · Architect", desc: "Per-token pricing and caching/batch discounts for cost questions." },
+        { title: "Prompt engineering — overview", url: "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview", for: "All tracks", desc: "The starting point: what to reach for, in what order." },
+        { title: "Prompting best practices", url: "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices", for: "All tracks", desc: "XML tags, chain-of-thought, few-shot examples, system prompts — the whole toolkit on one page." }
+      ]
+    },
+    {
+      group: "Agents, MCP & Claude Code",
+      note: "The heart of the Architect exam and much of Developer.",
+      links: [
+        { title: "Building effective agents", url: "https://www.anthropic.com/engineering/building-effective-agents", for: "Architect", desc: "Anthropic's engineering essay on workflow-vs-agent patterns — genuinely worth reading in full." },
+        { title: "Model Context Protocol", url: "https://modelcontextprotocol.io/", for: "Developer · Architect", desc: "The open MCP spec: servers, tools, resources, and transports." },
+        { title: "Claude Agent SDK — overview", url: "https://code.claude.com/docs/en/agent-sdk/overview", for: "Architect", desc: "Custom agent loops, subagents, and lifecycle hooks." },
+        { title: "Claude Code — overview", url: "https://code.claude.com/docs/en/overview", for: "Developer · Architect", desc: "The CLI/agent surface Claude Code domains are built on." },
+        { title: "Claude Code — memory (CLAUDE.md)", url: "https://code.claude.com/docs/en/memory", for: "Architect", desc: "The CLAUDE.md hierarchy, imports, and scope — heavily tested." },
+        { title: "Claude Code — settings", url: "https://code.claude.com/docs/en/settings", for: "Developer · Architect", desc: "settings.json, permissions, and configuration precedence." },
+        { title: "Claude Code — hooks", url: "https://code.claude.com/docs/en/hooks", for: "Architect", desc: "Deterministic enforcement via PreToolUse/PostToolUse — hooks vs. prompt guidance." },
+        { title: "Claude Code — subagents", url: "https://code.claude.com/docs/en/sub-agents", for: "Architect", desc: "Defining and delegating to subagents with isolated context." },
+        { title: "Claude Code — slash commands", url: "https://code.claude.com/docs/en/slash-commands", for: "Developer · Architect", desc: "Built-in and custom commands, including /compact and /memory." },
+        { title: "Agent Skills — overview", url: "https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview", for: "Developer · Architect", desc: "What Skills are and when to reach for them over tools or MCP." },
+        { title: "MCP in Claude Code", url: "https://code.claude.com/docs/en/mcp", for: "Architect", desc: "Project- vs. user-scoped .mcp.json and connecting MCP servers." },
+        { title: "Testing & evaluation", url: "https://platform.claude.com/docs/en/test-and-evaluate/develop-tests", for: "Architect", desc: "Building evals and success criteria for production systems." }
+      ]
+    },
+    {
+      group: "For the Associate track (claude.ai)",
+      note: "The Associate exam is about using Claude as a product — no code. These are the official help-center pages.",
+      links: [
+        { title: "Claude features (help center)", url: "https://support.claude.com/en/collections/4078531-claude-features", for: "Associate", desc: "The hub for Projects, Artifacts, memory, connectors, and more." },
+        { title: "What are Projects?", url: "https://support.claude.com/en/articles/9517075-what-are-projects", for: "Associate", desc: "Persistent instructions + knowledge sources — the core Associate workflow." },
+        { title: "What are Artifacts?", url: "https://support.claude.com/en/articles/9487310-what-are-artifacts-and-how-do-i-use-them", for: "Associate", desc: "When and how to use the artifact output format." }
       ]
     },
     {
       group: "Community study resources",
-      note: "Independent, free, and (in our judgment) high-quality. Not affiliated with this project or Anthropic — linked because they're genuinely useful, not as endorsements. Always cross-check against the official Exam Guide, which is the only authoritative blueprint.",
+      note: "Independent, free, and (in our judgment) high-quality — linked because they're useful, not as endorsements. Always cross-check against the official Exam Guide.",
       links: [
-        { title: "paullarionov/claude-certified-architect", url: "https://github.com/paullarionov/claude-certified-architect", desc: "A thorough, well-organized written study guide for the Architect – Foundations exam — API fundamentals through orchestration, MCP, Claude Code, and per-domain notes. Also ships PDF/EPUB versions, Anki decks, and translations into 14 languages." },
-        { title: "claude-guides.com", url: "https://claude-guides.com/", desc: "A free Claude Code reference: keyboard shortcuts, slash commands, MCP configuration, and workflow tips. Handy for the Claude Code–heavy domains on the Developer and Architect tracks." }
+        { title: "paullarionov/claude-certified-architect", url: "https://github.com/paullarionov/claude-certified-architect", for: "Architect", desc: "A thorough written study guide for Architect – Foundations, plus PDF/EPUB, Anki decks, and 14 translations." },
+        { title: "claude-guides.com", url: "https://claude-guides.com/", for: "Developer · Architect", desc: "A free Claude Code reference: shortcuts, slash commands, MCP config, and workflow tips." }
       ]
     }
   ];
@@ -1448,7 +1504,10 @@
       section.links.forEach(function (r) {
         list.appendChild(el("a", { class: "resource", href: r.url, target: "_blank", rel: "noopener noreferrer" }, [
           el("div", { class: "res-head" }, [
-            el("span", { class: "res-title" }, [r.title]),
+            el("div", { class: "res-title-wrap" }, [
+              el("span", { class: "res-title" }, [r.title]),
+              r["for"] ? el("span", { class: "res-for" }, [r["for"]]) : null
+            ]),
             el("span", { class: "res-host" }, [hostOf(r.url), " ↗"])
           ]),
           el("div", { class: "res-desc" }, [r.desc])
