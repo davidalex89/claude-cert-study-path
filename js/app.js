@@ -136,6 +136,29 @@
   function navigate(hash) { window.location.hash = hash; }
   function go(hash) { return function (e) { if (e) e.preventDefault(); navigate(hash); }; }
 
+  // Two-click-confirm reset button, reused on the home and About pages.
+  function resetProgressButton(opts) {
+    opts = opts || {};
+    var btn = el("button", { class: "btn" }, [opts.label || "Reset all my progress"]);
+    btn.addEventListener("click", function () {
+      if (btn.getAttribute("data-armed") !== "true") {
+        btn.setAttribute("data-armed", "true");
+        btn.classList.add("btn-danger");
+        btn.textContent = "Click again to confirm — this can't be undone";
+        return;
+      }
+      try { localStorage.removeItem(STORE_KEY); } catch (e) {}
+      if (opts.onDone) opts.onDone();
+      else {
+        btn.classList.remove("btn-danger");
+        btn.removeAttribute("data-armed");
+        btn.textContent = "✓ Progress cleared";
+        btn.setAttribute("disabled", "true");
+      }
+    });
+    return btn;
+  }
+
   // Intervals (the exam timer) are torn down on every route change so a running
   // clock can't outlive the page that owns it.
   var liveIntervals = [];
@@ -296,13 +319,22 @@
       nodeEls[i] = g;
     });
 
+    function legendRow(certId, num, note, extraClass) {
+      return el("div", { class: "mm-leg-row" + (extraClass ? " " + extraClass : "") }, [
+        el("span", { class: "mm-leg-num", style: "background:" + ACCENTS[certId] }, [String(num)]),
+        el("span", { class: "mm-leg-name" }, [CERTS[certId].name.replace("Claude Certified ", "").replace(" – Foundations", "").replace(" – Professional", " Pro")]),
+        note ? el("span", { class: "mm-leg-note" }, [note]) : null
+      ]);
+    }
     var wrap = el("div", { class: "mini-roadmap" }, [
       el("div", { class: "mm-title" }, ["The path, cert to cert"]),
       svg,
       el("div", { class: "mm-legend" }, [
-        el("strong", {}, ["1 Associate"]), " is the shared start. Then it forks: ",
-        el("strong", {}, ["2 Developer"]), " ends the road, or ",
-        el("strong", {}, ["3 Architect"]), " → ", el("strong", {}, ["4 Professional"]), "."
+        legendRow("associate", 1, "shared start"),
+        el("div", { class: "mm-leg-fork" }, ["then it forks →"]),
+        legendRow("developer", 2, "road ends here", "branch"),
+        legendRow("architect-foundations", 3, "systems path", "branch"),
+        legendRow("architect-professional", 4, "the summit", "branch cont")
       ])
     ]);
     return {
@@ -426,12 +458,7 @@
     var nextBtn = el("button", { class: "cc-arrow", type: "button", "aria-label": "Next certification" }, ["→"]);
     var dots = el("div", { class: "cc-dots" });
     map.appendChild(el("div", { class: "cc-head" }, [
-      el("div", {}, [
-        el("h2", {}, ["The route"]),
-        el("p", { class: "route-intro" }, [
-          "Four certifications, one scrollable path. Swipe or use the arrows to move between them; every marker inside a lane is a real exam domain — click it to jump straight into that lesson."
-        ])
-      ]),
+      el("h2", {}, ["The route"]),
       el("div", { class: "cc-controls" }, [prevBtn, dots, nextBtn])
     ]));
 
@@ -475,7 +502,8 @@
     ]));
     two.appendChild(el("div", {}, [
       el("h3", {}, ["Your progress, your machine"]),
-      el("p", {}, ["Progress is stored in your browser's localStorage only — per certification, per domain. Clear your browser data and it resets; nothing leaves your machine."]),
+      el("p", {}, ["Progress is stored in your browser's localStorage only — per certification, per domain. Nothing leaves your machine, and you can wipe it here any time."]),
+      el("div", { class: "btn-row" }, [resetProgressButton({ onDone: function () { render(); } })]),
       el("h3", {}, ["No prerequisites, really"]),
       el("p", {}, ["Anthropic doesn't gate any of the four exams behind another — the roadmap above reflects what the work looks like, not a checkpoint system."])
     ]));
@@ -1386,25 +1414,7 @@
       el("p", {}, ["This site can't register you for anything. To schedule an official exam, go through Anthropic's Partner Academy, download the current Exam Guide, and schedule through Pearson VUE."]),
       el("h3", {}, ["Your data"]),
       el("p", {}, ["Progress (lessons read, quiz scores, flashcard mastery) is stored only in your browser's localStorage. Nothing is sent to a server — there is no server. Clearing your browser storage resets everything."]),
-      (function () {
-        var wrap = el("div", { class: "btn-row" });
-        var btn = el("button", { class: "btn" }, ["Reset all my progress"]);
-        btn.addEventListener("click", function () {
-          if (btn.getAttribute("data-armed") !== "true") {
-            btn.setAttribute("data-armed", "true");
-            btn.classList.add("btn-danger");
-            btn.textContent = "Click again to confirm — this can't be undone";
-            return;
-          }
-          try { localStorage.removeItem(STORE_KEY); } catch (e) {}
-          btn.classList.remove("btn-danger");
-          btn.removeAttribute("data-armed");
-          btn.textContent = "✓ Progress cleared";
-          btn.setAttribute("disabled", "true");
-        });
-        wrap.appendChild(btn);
-        return wrap;
-      })(),
+      el("div", { class: "btn-row" }, [resetProgressButton({})]),
       el("h3", {}, ["Open source"]),
       el("p", {}, ["This project is open source. Corrections to the domain content, additional practice questions, and new flashcards are welcome via pull request."])
     ]));

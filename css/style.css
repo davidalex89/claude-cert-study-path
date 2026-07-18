@@ -243,8 +243,27 @@ p { color: var(--text-secondary); }
 .mm-node:focus-visible { outline: none; }
 .mm-node:focus-visible circle { stroke-width: 3.5; }
 .mm-flag { font-size: 12px; }
-.mini-roadmap .mm-legend { font-size: 0.72rem; color: var(--text-muted); margin-top: 8px; line-height: 1.5; }
-.mini-roadmap .mm-legend strong { color: var(--text-secondary); font-weight: 600; }
+.mini-roadmap .mm-legend { margin-top: 10px; display: flex; flex-direction: column; gap: 5px; }
+.mm-leg-row { display: flex; align-items: center; gap: 8px; font-size: 0.76rem; }
+.mm-leg-row.branch { padding-left: 12px; }
+.mm-leg-num {
+  flex-shrink: 0;
+  width: 17px; height: 17px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.66rem; font-weight: 700; color: #fff;
+}
+.mm-leg-name { font-weight: 600; color: var(--text-secondary); }
+.mm-leg-note { color: var(--text-muted); font-size: 0.72rem; }
+.mm-leg-note::before { content: "· "; }
+.mm-leg-fork { font-size: 0.68rem; color: var(--text-muted); font-style: italic; padding-left: 2px; }
+.mm-leg-row.cont .mm-leg-num { position: relative; }
+.mm-leg-row.cont::before {
+  content: "↳";
+  color: var(--text-muted);
+  margin-left: -2px;
+  font-size: 0.8rem;
+}
+.mm-leg-row.cont { padding-left: 4px; }
 
 /* ---------- home: certification carousel ---------- */
 
