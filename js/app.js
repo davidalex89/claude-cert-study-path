@@ -319,23 +319,9 @@
       nodeEls[i] = g;
     });
 
-    function legendRow(certId, num, note, extraClass) {
-      return el("div", { class: "mm-leg-row" + (extraClass ? " " + extraClass : "") }, [
-        el("span", { class: "mm-leg-num", style: "background:" + ACCENTS[certId] }, [String(num)]),
-        el("span", { class: "mm-leg-name" }, [CERTS[certId].name.replace("Claude Certified ", "").replace(" – Foundations", "").replace(" – Professional", " Pro")]),
-        note ? el("span", { class: "mm-leg-note" }, [note]) : null
-      ]);
-    }
     var wrap = el("div", { class: "mini-roadmap" }, [
       el("div", { class: "mm-title" }, ["The path, cert to cert"]),
-      svg,
-      el("div", { class: "mm-legend" }, [
-        legendRow("associate", 1, "shared start"),
-        el("div", { class: "mm-leg-fork" }, ["then it forks →"]),
-        legendRow("developer", 2, "road ends here", "branch"),
-        legendRow("architect-foundations", 3, "systems path", "branch"),
-        legendRow("architect-professional", 4, "the summit", "branch cont")
-      ])
+      svg
     ]);
     return {
       el: wrap,
@@ -503,9 +489,7 @@
     two.appendChild(el("div", {}, [
       el("h3", {}, ["Your progress, your machine"]),
       el("p", {}, ["Progress is stored in your browser's localStorage only — per certification, per domain. Nothing leaves your machine, and you can wipe it here any time."]),
-      el("div", { class: "btn-row" }, [resetProgressButton({ onDone: function () { render(); } })]),
-      el("h3", {}, ["No prerequisites, really"]),
-      el("p", {}, ["Anthropic doesn't gate any of the four exams behind another — the roadmap above reflects what the work looks like, not a checkpoint system."])
+      el("div", { class: "btn-row" }, [resetProgressButton({ onDone: function () { render(); } })])
     ]));
     shell.appendChild(two);
 
