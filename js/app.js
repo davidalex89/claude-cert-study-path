@@ -175,6 +175,11 @@
     document.addEventListener("keydown", fn);
     liveKeyHandlers.push(fn);
   }
+  function unregisterKeyHandler(fn) {
+    var i = liveKeyHandlers.indexOf(fn);
+    if (i !== -1) liveKeyHandlers.splice(i, 1);
+    document.removeEventListener("keydown", fn);
+  }
   function clearKeyHandlers() {
     liveKeyHandlers.forEach(function (fn) { document.removeEventListener("keydown", fn); });
     liveKeyHandlers = [];
@@ -377,16 +382,17 @@
       var quiz = cp.domainQuizBest[dom.id];
       var statusText = status === "mastered" ? "Mastered ✓" : status === "started" ? (quiz ? "Quiz best: " + quiz.pct + "%" : "Lesson started") : "Not started yet";
       var tipEdgeClass = i === 0 ? " edge-start" : i === points.length - 1 ? " edge-end" : "";
+      var domainNum = i + 1;
       var node = el("button", {
         class: "node " + status,
         type: "button",
         style: "left:" + p.x + "px; top:" + p.y + "px;",
-        onclick: go("#/track/" + certId + "/domain/" + dom.id)
+        onclick: (function (d, n) { return function (e) { if (e) e.preventDefault(); openDomainZoom(certId, d, n); }; })(dom, domainNum)
       }, [
-        el("span", {}, [status === "mastered" ? "✓" : String(i + 1)]),
+        el("span", {}, [status === "mastered" ? "✓" : String(domainNum)]),
         el("div", { class: "node-tip" + tipEdgeClass }, [
           el("div", { class: "nt-title" }, [dom.title]),
-          el("div", { class: "nt-meta" }, [dom.weight + "% of exam"]),
+          el("div", { class: "nt-meta" }, [dom.weight + "% of exam · click to preview"]),
           el("div", { class: "nt-status" }, [statusText])
         ])
       ]);
@@ -395,6 +401,67 @@
 
     lane.appendChild(el("div", { class: "lane-scroll" }, [track]));
     return lane;
+  }
+
+  // Clicking a domain node on the home road opens a zoom-in preview of that
+  // domain: its concepts and a short description, each jumpable. Click the
+  // backdrop or press Esc to zoom back out.
+  function closeDomainZoom() {
+    var existing = document.querySelector(".zoom-overlay");
+    if (!existing) return;
+    existing.classList.remove("in");
+    if (existing._esc) unregisterKeyHandler(existing._esc);
+    setTimeout(function () { if (existing.parentNode) existing.parentNode.removeChild(existing); }, 200);
+  }
+
+  function openDomainZoom(certId, domain, domainNum) {
+    closeDomainZoom();
+    var cert = CERTS[certId];
+    var accent = ACCENTS[certId];
+    var status = domainStatus(certId, domain.id);
+    var cp = getCertProgress(certId);
+    var quiz = cp.domainQuizBest[domain.id];
+    var statusText = status === "mastered" ? "Mastered ✓" : status === "started" ? (quiz ? "Quiz best: " + quiz.pct + "%" : "Lesson started") : "Not started yet";
+    var base = "#/track/" + certId + "/domain/" + domain.id;
+
+    var concepts = el("div", { class: "zoom-concepts" });
+    (domain.lesson.sections || []).forEach(function (sec, si) {
+      concepts.appendChild(el("a", { class: "zoom-concept", onclick: go(base + "/step/" + si) }, [
+        el("span", { class: "zc-num" }, [String(si + 1)]),
+        el("span", {}, [sec.heading])
+      ]));
+    });
+
+    var panel = el("div", { class: "zoom-panel", role: "dialog", "aria-modal": "true" });
+    panel.style.setProperty("--accent", accent);
+    panel.appendChild(el("button", { class: "zoom-close", type: "button", "aria-label": "Close", onclick: closeDomainZoom }, ["✕"]));
+    panel.appendChild(el("div", { class: "zoom-head" }, [
+      el("div", { class: "zoom-badge" }, [status === "mastered" ? "✓" : String(domainNum)]),
+      el("div", {}, [
+        el("div", { class: "zoom-meta" }, ["Domain " + domainNum + " of " + cert.domains.length + " · " + domain.weight + "% of exam · " + statusText]),
+        el("h3", {}, [domain.title])
+      ])
+    ]));
+    panel.appendChild(el("div", { class: "zoom-desc" }, [domain.summary]));
+    panel.appendChild(el("div", { class: "zoom-concepts-label" }, ["What you'll learn — " + (domain.lesson.sections || []).length + " concepts"]));
+    panel.appendChild(concepts);
+    panel.appendChild(el("div", { class: "zoom-actions" }, [
+      el("a", { class: "btn btn-primary btn-sm", onclick: go(base + "/step/0") }, ["Start walkthrough →"]),
+      el("a", { class: "btn btn-sm", onclick: go(base + "/quiz") }, ["Domain quiz"]),
+      el("a", { class: "btn btn-sm", onclick: go(base) }, ["Full details"])
+    ]));
+
+    var overlay = el("div", { class: "zoom-overlay" }, [panel]);
+    overlay.addEventListener("click", function (e) { if (e.target === overlay) closeDomainZoom(); });
+    overlay._esc = function (e) { if (e.key === "Escape") closeDomainZoom(); };
+    // Registered via the key-handler registry so a route change (e.g. clicking a
+    // concept, which navigates rather than calling close) tears the listener down.
+    registerKeyHandler(overlay._esc);
+
+    // Append into #app so a route change tears it down with everything else.
+    (document.getElementById("app") || document.body).appendChild(overlay);
+    // next frame → trigger the zoom-in transition
+    requestAnimationFrame(function () { overlay.classList.add("in"); });
   }
 
   function renderHome(root) {
