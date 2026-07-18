@@ -199,6 +199,7 @@
 
     if (parts.length === 0) return renderHome(root);
     if (parts[0] === "about") return renderAbout(root);
+    if (parts[0] === "resources") return renderResources(root);
     if (parts[0] === "track" && parts[1]) {
       var certId = parts[1];
       if (!CERTS[certId]) return renderNotFound(root);
@@ -232,6 +233,7 @@
       nav.appendChild(el("a", { onclick: go("#/track/" + certId + "/flashcards") }, ["Flashcards"]));
       nav.appendChild(el("a", { onclick: go("#/track/" + certId + "/exam") }, ["Practice Exam"]));
     }
+    nav.appendChild(el("a", { onclick: go("#/resources") }, ["Resources"]));
     nav.appendChild(el("a", { onclick: go("#/about") }, ["About"]));
     nav.appendChild(el("button", { class: "icon-btn", title: "Toggle theme", onclick: toggleTheme }, [themeIcon()]));
     bar.appendChild(nav);
@@ -1402,6 +1404,68 @@
       el("h3", {}, ["Open source"]),
       el("p", {}, ["This project is open source. Corrections to the domain content, additional practice questions, and new flashcards are welcome via pull request."])
     ]));
+    root.appendChild(shell);
+  }
+
+  // ---------------------------------------------------------------------
+  // RESOURCES — curated external links (vetted; no exam dumps)
+  // ---------------------------------------------------------------------
+  var RESOURCES = [
+    {
+      group: "Official — register, schedule, and read the source",
+      note: "These are the authoritative sources. The exam guides here are the same PDFs this site's domain blueprints, weights, and sample questions are drawn from.",
+      links: [
+        { title: "Claude Partner Network", url: "https://claude.com/partners", desc: "Certification registration runs through the Anthropic Partner Academy, which requires a Partner Network account with a company-domain email. This is where you request access and download the official Exam Guide PDFs." },
+        { title: "Pearson VUE — Claude Certification Program", url: "https://www.pearsonvue.com/us/en/anthropic.html", desc: "Where you actually schedule and sit the exam — online-proctored from home or at a test center. Handles rescheduling, accommodations, and results." },
+        { title: "Claude documentation", url: "https://docs.claude.com/", desc: "The primary technical reference for everything the exams test: the Messages API, tool use, MCP, the Agent SDK, Claude Code, prompt caching, and more. If a practice question here and the docs ever disagree, the docs win." }
+      ]
+    },
+    {
+      group: "Community study resources",
+      note: "Independent, free, and (in our judgment) high-quality. Not affiliated with this project or Anthropic — linked because they're genuinely useful, not as endorsements. Always cross-check against the official Exam Guide, which is the only authoritative blueprint.",
+      links: [
+        { title: "paullarionov/claude-certified-architect", url: "https://github.com/paullarionov/claude-certified-architect", desc: "A thorough, well-organized written study guide for the Architect – Foundations exam — API fundamentals through orchestration, MCP, Claude Code, and per-domain notes. Also ships PDF/EPUB versions, Anki decks, and translations into 14 languages." },
+        { title: "claude-guides.com", url: "https://claude-guides.com/", desc: "A free Claude Code reference: keyboard shortcuts, slash commands, MCP configuration, and workflow tips. Handy for the Claude Code–heavy domains on the Developer and Architect tracks." }
+      ]
+    }
+  ];
+
+  function hostOf(url) {
+    try { return new URL(url).host.replace(/^www\./, ""); } catch (e) { return url; }
+  }
+
+  function renderResources(root) {
+    renderTopbar(null);
+    var shell = el("div", { class: "shell reading" });
+    shell.appendChild(el("div", { class: "crumbs" }, [el("a", { onclick: go("#/") }, ["Home"]), el("span", { class: "sep" }, ["/"]), "Resources"]));
+    shell.appendChild(el("h1", {}, ["Resources & references"]));
+    shell.appendChild(el("p", { class: "lede" }, ["Where to register and sit the real exam, the official docs the material is built on, and a few outside study resources worth your time."]));
+
+    RESOURCES.forEach(function (section) {
+      shell.appendChild(el("h2", {}, [section.group]));
+      if (section.note) shell.appendChild(el("p", {}, [section.note]));
+      var list = el("div", { class: "resource-list" });
+      section.links.forEach(function (r) {
+        list.appendChild(el("a", { class: "resource", href: r.url, target: "_blank", rel: "noopener noreferrer" }, [
+          el("div", { class: "res-head" }, [
+            el("span", { class: "res-title" }, [r.title]),
+            el("span", { class: "res-host" }, [hostOf(r.url), " ↗"])
+          ]),
+          el("div", { class: "res-desc" }, [r.desc])
+        ]));
+      });
+      shell.appendChild(list);
+    });
+
+    shell.appendChild(el("div", { class: "callout warn" }, [
+      el("span", { class: "callout-label" }, ["A note on what's not here"]),
+      "We deliberately don't link sites advertising real or leaked exam questions (\"braindumps\"). Reproducing live exam items violates the confidentiality agreement every candidate accepts, and studying from them is a fast way to get a credential revoked. Everything above is original study material or an official source."
+    ]));
+
+    shell.appendChild(el("div", { class: "footer-note" }, [
+      "Know a genuinely useful, free resource that isn't a braindump? Open a pull request adding it to the list."
+    ]));
+
     root.appendChild(shell);
   }
 

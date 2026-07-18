@@ -30,8 +30,9 @@ For every domain you get:
 - **Checkpoints** at the end of each walkthrough, then **a domain quiz** — scenario-framed, single- and multi-select, in the real exam's format.
 - **A timed full practice exam per track** — drawn to the real item count with the real 120-minute clock, a domain-by-domain score breakdown, and a **review of every question you missed** with what you picked and why the right answer is right.
 - **Flashcards** — with a know-it/still-learning flow so mastered cards drop out of rotation. Keyboard: <kbd>space</kbd> flip, <kbd>→</kbd> know it, <kbd>←</kbd> still learning.
+- **A Resources page** — vetted external links: where to register (Anthropic Partner Network) and schedule (Pearson VUE), the official Claude docs, and a couple of genuinely good community study resources. No braindumps.
 
-Progress (lessons read, best quiz scores, flashcard mastery) is saved to your browser's `localStorage`, scoped per track and per domain. Nothing is sent anywhere — there's no backend at all. You can wipe it any time from the About page.
+Progress (lessons read, best quiz scores, flashcard mastery) is saved to your browser's `localStorage`, scoped per track and per domain. Nothing is sent anywhere — there's no backend at all. You can wipe it any time from the home page or the About page.
 
 ## Running it locally
 
