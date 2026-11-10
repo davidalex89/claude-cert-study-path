@@ -25,7 +25,8 @@ function bad(where, msg) { problems.push(where + ": " + msg); }
 
 global.window = {};
 TRACKS.forEach(function (t) {
-  require(path.join(__dirname, "..", "js", "data", t + ".js"));
+  // t comes from the TRACKS list above, not from input.
+  require(path.join(__dirname, "..", "js", "data", t + ".js")); // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal
 });
 
 var totals = { sections: 0, widgets: 0, checks: 0, quiz: 0, flashcards: 0, prose: 0, multi: 0, official: 0 };
