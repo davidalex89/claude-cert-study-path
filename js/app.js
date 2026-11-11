@@ -120,11 +120,6 @@
     });
     return node;
   }
-  function esc(s) {
-    var d = document.createElement("div");
-    d.textContent = s == null ? "" : String(s);
-    return d.innerHTML;
-  }
   function shuffle(arr) {
     var a = arr.slice();
     for (var i = a.length - 1; i > 0; i--) {
@@ -206,8 +201,11 @@
     if (parts[0] === "about") return renderAbout(root);
     if (parts[0] === "resources") return renderResources(root);
     if (parts[0] === "track" && parts[1]) {
-      var certId = parts[1];
-      if (!CERTS[certId]) return renderNotFound(root);
+      // Own keys only: CERTS is a plain object, so "__proto__" or "constructor"
+      // in the URL would pass a truthiness check. The id used from here on is
+      // the registered one, not the URL segment.
+      if (!Object.prototype.hasOwnProperty.call(CERTS, parts[1])) return renderNotFound(root);
+      var certId = CERTS[parts[1]].id;
       if (parts.length === 2) return renderTrack(root, certId);
       if (parts[2] === "exam") return renderExam(root, certId);
       if (parts[2] === "flashcards") return renderFlashcards(root, certId, parts[3] || null);
@@ -356,7 +354,7 @@
       ])
     ]));
 
-    var nodeSize = 44, spacing = 138, padX = 68, trackH = 215, centerY = 165, amp = 20;
+    var spacing = 138, padX = 68, trackH = 215, centerY = 165, amp = 20;
     var width = padX * 2 + (domains.length - 1) * spacing;
     var points = domains.map(function (d, i) {
       return { x: padX + i * spacing, y: Math.round(centerY + amp * Math.sin(i * 1.05)), domain: d };
@@ -907,7 +905,7 @@
     var domain = cert.domains.filter(function (d) { return d.id === domainId; })[0];
     if (!domain) return renderNotFound(root);
     renderTopbar(certId);
-    markLessonRead(certId, domainId);
+    markLessonRead(certId, domain.id);
 
     var idx = cert.domains.indexOf(domain);
     var prev = cert.domains[idx - 1];
@@ -961,7 +959,7 @@
     if (stepIndex >= steps.length) stepIndex = steps.length - 1;
 
     renderTopbar(certId);
-    markLessonRead(certId, domainId);
+    markLessonRead(certId, domain.id);
 
     var idx = cert.domains.indexOf(domain);
     var domPrev = cert.domains[idx - 1];
@@ -1013,7 +1011,6 @@
   // question card (used by checkpoints, domain quiz, exam)
   // ---------------------------------------------------------------------
   function renderQuestionCard(q, certId, onAnswered, opts) {
-    opts = opts || {};
     var selectCount = q.type === "multi" ? (q.correct.length) : 1;
     var selected = [];
     var answered = false;
@@ -1092,7 +1089,7 @@
       crumbs: [["Home", "#/"], [cert.name, "#/track/" + certId], [domain.title, "#/track/" + certId + "/domain/" + domainId]],
       questions: shuffle(domain.quiz || []),
       backHash: "#/track/" + certId + "/domain/" + domainId,
-      onFinish: function (score, total) { recordDomainQuiz(certId, domainId, score, total); },
+      onFinish: function (score, total) { recordDomainQuiz(certId, domain.id, score, total); },
       // Retry re-runs the flow in place: navigating to the hash we're already on
       // would not fire hashchange, so the button would do nothing.
       onRetry: function () { renderDomainQuiz(root, certId, domainId); }
